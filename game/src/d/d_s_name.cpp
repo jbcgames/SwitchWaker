@@ -1167,7 +1167,7 @@ void dScnName_c::NoteOpenWait() {
                 mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
                 mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
 
-                field_0x55f = 1; // 1 = OPEN_SCENE
+                field_0x55f = 0; // 0 = PLAY_SCENE (bypass prologue scene directly to Outset Island)
                 mMainProc = 9;   // changeGameScene
                 mDrawProc = 4;   // NoneDraw
                 return;

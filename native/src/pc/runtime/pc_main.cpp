@@ -58,7 +58,11 @@ namespace pc {
 
 namespace {
 
+#if defined(__aarch64__) && !defined(__SWITCH__)
+constexpr uint32_t kMem1Size = 160u * 1024 * 1024; // 160 MB for 1GB RK3326 Linux
+#else
 constexpr uint32_t kMem1Size = 256u * 1024 * 1024; // decision H5 (256 MB MEM1)
+#endif
 constexpr uint32_t kMem2Size = 16u * 1024 * 1024;  // ARAM, as on the GameCube
 
 char sUserPath[PATH_MAX];
@@ -243,9 +247,13 @@ void pc_aurora_init(int argc, char* argv[]) {
     if (const char* h = getenv("COS_HEIGHT"); h && *h) {
         config.windowHeight = atoi(h);
     }
+    uint32_t mem1 = kMem1Size;
+    if (const char* envMem = getenv("COS_MEM1_MB"); envMem && *envMem) {
+        mem1 = (uint32_t)atoi(envMem) * 1024 * 1024;
+    }
     config.logLevel = LOG_INFO;
     config.allowTextureDumps = false;
-    config.mem1Size = kMem1Size;
+    config.mem1Size = mem1;
     config.mem2Size = kMem2Size;
     config.blockingPipelines = gConfig.syncPipelines;
     const AuroraInfo info = aurora_initialize(argc, argv, &config);
@@ -290,7 +298,7 @@ void pc_aurora_init(int argc, char* argv[]) {
     }
     const DVDDiskID* id = DVDGetCurrentDiskID();
     if (id == nullptr || memcmp(id->gameName, COS_GAME_ID_STR, 4) != 0 ||
-        memcmp(id->company, COS_GAME_ID_STR + 4, 2) != 0 || id->gameVersion != 0) {
+        memcmp(id->company, &COS_GAME_ID_STR[4], 2) != 0 || id->gameVersion != 0) {
         discMessage("the disc is %.4s%.2s version %u (DVDGetCurrentDiskID); the supported disc is " COS_GAME_ID_STR
                     " version 0",
                     id != nullptr ? id->gameName : "????", id != nullptr ? id->company : "??",
