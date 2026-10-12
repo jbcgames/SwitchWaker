@@ -35,16 +35,22 @@
 #include "pc_internal.h"
 
 #include "pc/pc_controls.h"
+#include "pc/pc_qol.h"
 
 #include "d/d_com_inf_game.h"
+#include "d/d_kankyo.h"
+#include <math.h>
 #include "d/d_s_play.h"
 #include "d/d_save.h"
+#include "d/d_item.h"
 #include "d/d_item_data.h"
 #include "d/actor/d_a_player.h"
 #include "m_Do/m_Do_MemCard.h"
 #include "m_Do/m_Do_MemCardRWmng.h"
+#include "m_Do/m_Do_audio.h"
 #include "f_op/f_op_actor_mng.h"
 #include "f_pc/f_pc_manager.h"
+#include "f_pc/f_pc_layer.h"
 #include "f_pc/f_pc_name.h"
 
 #include <imgui.h>
@@ -59,6 +65,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <strings.h>
 #include <unistd.h>
 #include <vector>
 
@@ -421,6 +428,7 @@ void applyCameraInvertX(const char*, const char* v, void*) { pc_camera_invert_x_
 void applyCameraInvertY(const char*, const char* v, void*) { pc_camera_invert_y_set(strcmp(v, "1") == 0); }
 void applyCameraShake(const char*, const char* v, void*) { pc_camera_shake_set(strcmp(v, "1") == 0); }
 void applyHeatHaze(const char*, const char* v, void*) { pc_heat_haze_set(strcmp(v, "1") == 0); }
+void applyQol(const char* key, const char* v, void*) { pc_qol_set(key, v); }
 void applyGpuProfile(const char*, const char* v, void*) {
 #if defined(__SWITCH__)
     cos_switch_set_gpu_profile(v);
@@ -475,6 +483,11 @@ const PcSettingChoice kShowHide[] = {{"1", "Mostrar", "Show"}, {"0", "Ocultar", 
 const PcSettingChoice kHitch[] = {{"0", "Desactivadas", "Off"}, {"33", "Más de 33 ms", "Over 33 ms"},
                                   {"40", "Más de 40 ms", "Over 40 ms"}, {"50", "Más de 50 ms", "Over 50 ms"},
                                   {"100", "Más de 100 ms", "Over 100 ms"}};
+// Calidad de vida > Vela (COS_QOL_SAIL, pc_qol.h)
+const PcSettingChoice kQolSail[] = {{"0", "Original", "Original"},
+                                    {"swift", "Vela rápida (Swift Sail)", "Swift Sail"},
+                                    {"brisk", "Vela ligera (Brisk Sail)", "Brisk Sail"},
+                                    {"wind", "Vela normal con viento a favor", "Normal sail, wind at your back"}};
 const PcSettingChoice kHdStats[] = {{"0", "Desactivadas", "Off"}, {"150", "Cada 150 cuadros", "Every 150 frames"},
                                     {"300", "Cada 300 cuadros", "Every 300 frames"},
                                     {"600", "Cada 600 cuadros", "Every 600 frames"}};
@@ -572,6 +585,94 @@ const PcSettingDesc kBuiltins[] = {
      "60 images a second by interpolating between frames; the game still runs at 30. More CPU and "
      "battery. When it cannot keep up it lowers the resolution (Dynamic resolution) or drops to 30 for "
      "a while."},
+    // Calidad de vida (pc_qol.h, docs/QOL_PLAN.md: BetterWW's and wwrando's patches; all off by default)
+    {"COS_QOL_INSTANT_TEXT", "Texto instantáneo",
+     "Los textos aparecen enteros y sin pausas; mantener B pasa los mensajes (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 10,
+     "Instant text",
+     "Text boxes appear whole and without pauses; holding B skips the messages (BetterWW)."},
+    {"COS_QOL_FAST_ROLL", "Voltereta más rápida",
+     "La voltereta sale siempre a casi toda velocidad, también desde parado (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 20,
+     "Faster roll",
+     "The roll always starts at nearly full speed, also from standing (BetterWW)."},
+    {"COS_QOL_FAST_BLOCKS", "Empujar bloques más rápido",
+     "Los bloques se empujan y arrastran más deprisa (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 30,
+     "Faster block moving",
+     "Blocks are pushed and pulled faster (BetterWW)."},
+    {"COS_QOL_FAST_GRAPPLE", "Garfio más rápido",
+     "El garfio sale, se enrolla y se suelta más deprisa, como en Wind Waker HD (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 40,
+     "Faster grappling hook",
+     "The grappling hook flies, wraps and lets go faster, as in Wind Waker HD (BetterWW)."},
+    {"COS_QOL_FAST_CLIMB", "Gatear y trepar más rápido",
+     "Más deprisa al gatear, trepar, subir escaleras y enredaderas y pegarse a la pared; la cámara llega "
+     "antes al hablar (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 50,
+     "Faster crawling and climbing",
+     "Faster crawling, climbing, ladders and vines and sidling; the camera gets there sooner when "
+     "talking (BetterWW)."},
+    {"COS_QOL_FAST_BALLAD", "Balada del vendaval rápida",
+     "El viaje con la Balada del vendaval empieza en cuanto aparece el tornado, sin la subida del barco "
+     "(BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 60,
+     "Faster Ballad of Gales",
+     "The Ballad of Gales warp starts as soon as the cyclone appears, without the boat's rise "
+     "(BetterWW)."},
+    {"COS_QOL_SKIP_INTRO", "Saltar la introducción",
+     "Una partida nueva empieza en Isla Initia, sin la leyenda del principio (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 75,
+     "Skip the intro",
+     "A new game starts on Outset Island, without the opening legend (BetterWW)."},
+    {"COS_QOL_REVEAL_CHART", "Carta náutica completa",
+     "La carta náutica muestra todo el mar. No cambia la partida guardada: al desactivarlo vuelve a "
+     "mostrar lo explorado (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 80,
+     "Full sea chart",
+     "The sea chart shows the whole sea. The save does not change: turned off, it shows what was "
+     "explored again (BetterWW)."},
+    {"COS_QOL_TINGLE_CHESTS", "Cofres de Tingle sin Tingle Tuner",
+     "Los cofres de Tingle aparecen con cualquier bomba, y con la brújula salen en el mapa (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 90,
+     "Tingle chests without Tingle Tuner",
+     "Tingle chests appear with any bomb, and with the compass they show on the map (BetterWW)."},
+    {"COS_QOL_SAIL", "Vela",
+     "Rápida: el viento sopla siempre a favor y el barco va al doble, como en Wind Waker HD. Ligera: igual "
+     "y frena antes. Vela normal con viento a favor: solo el viento (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kQolSail), "0", applyQol, nullptr, 100,
+     "Sail",
+     "Swift: the wind always blows from behind and the boat goes twice as fast, as in Wind Waker HD. "
+     "Brisk: the same, and it stops sooner. Normal sail, wind at your back: only the wind (BetterWW)."},
+    {"COS_QOL_FREE_BOAT", "Barco sin restricciones",
+     "El Mascarón Rojo no te hace volver por no haber avanzado en la historia (solo en el borde del mar) y "
+     "deja subir aunque el viento no sople a favor. Puedes llegar antes de tiempo a sitios de la historia "
+     "(BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 105,
+     "Unrestricted boat",
+     "The King of Red Lions does not turn you back for not having got far enough in the story (only at "
+     "the edge of the sea) and lets you board whatever the wind. You can reach story places early "
+     "(BetterWW)."},
+    {"COS_QOL_SWING_TURN", "Girar al balancearse",
+     "El stick gira a Link mientras se balancea en una cuerda o con el garfio (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 110,
+     "Turn while swinging",
+     "The stick turns Link while he swings on a rope or the grappling hook (BetterWW)."},
+    {"COS_QOL_NO_SONG_REPLAY", "Canciones sin repetición",
+     "Tras tocar una canción con la batuta, Link no la vuelve a dirigir (BetterWW).",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 120,
+     "No song replays",
+     "After a song is played with the baton, Link does not conduct it again (BetterWW)."},
+    {"COS_QOL_FIX_BUGS", "Arreglar fallos del juego original",
+     "Arregla fallos del juego original que BetterWW corrige: la abuela sin botella vacía, Beedle comprando "
+     "Jalea azul, la Cámara Plus en el botón, Morths fuera del mapa, enemigos muertos con flechas de luz "
+     "(Stalfos, Minimoblin, Poes de Jalhalla, Magtail) y el disparador de Ganon Fantasma.",
+     PC_SETTING_TAB_QOL, 0, CHOICES(kOnOff), "0", applyQol, nullptr, 130,
+     "Fix bugs of the original game",
+     "Fixes bugs of the original game that BetterWW fixes: the grandmother without an empty bottle, "
+     "Beedle buying Blue Chu Jelly, the Deluxe Picto Box on a button, Morths out of the map, enemies "
+     "killed with Light Arrows (Stalfos, Miniblins, Jalhalla's Poes, Magtails) and Phantom Ganon's "
+     "trigger."},
     // Depuración
     {"COS_PERF_EVERY", "Intervalo del registro perf",
      "Cada cuántos cuadros se escribe una línea [cos] perf en el registro (native/logs/).",
@@ -617,15 +718,15 @@ const PcSettingDesc kBuiltins[] = {
 
 // ---- menu state ----------------------------------------------------------------------------------
 
-enum class RowKind { EditMode, Setting, Warp, Sailing, Screenshot, Reload };
+enum class RowKind { EditMode, Setting, Warp, Sailing, Screenshot, Reload, QolBetterWW, QolOriginal };
 
 struct Row {
     RowKind kind;
     const PcSettingDesc* desc = nullptr;
 };
 
-const char* const kTabNames[PC_SETTING_TABS] = {"Gráficos", "Rendimiento", "Depuración"};
-const char* const kTabNamesEn[PC_SETTING_TABS] = {"Graphics", "Performance", "Debug"};
+const char* const kTabNames[PC_SETTING_TABS] = {"Gráficos", "Rendimiento", "Calidad de vida", "Depuración"};
+const char* const kTabNamesEn[PC_SETTING_TABS] = {"Graphics", "Performance", "Quality of life", "Debug"};
 
 struct Menu {
     bool initialized = false;
@@ -665,6 +766,10 @@ std::vector<Row> rowsOf(int tab) {
     std::vector<Row> rows;
     if (tab == PC_SETTING_TAB_GRAPHICS) {
         rows.push_back({RowKind::EditMode});
+    }
+    if (tab == PC_SETTING_TAB_QOL) {
+        rows.push_back({RowKind::QolBetterWW});
+        rows.push_back({RowKind::QolOriginal});
     }
     if (tab == PC_SETTING_TAB_DEBUG) {
         rows.push_back({RowKind::Warp});
@@ -744,12 +849,43 @@ void setOpen(bool open) {
     }
 }
 
+// A warp ordered here (Viajar, Navegar, the debug server's warp) can leave in the middle of conducting
+// the Wind Waker, which the game's own ways out of a scene never do: conducting stops its loops itself
+// (JAIZelInst::reset from daPy_lk_c's tact procedures). Those loops (metronome, drone, pulse, auftakt)
+// play with no actor position, so deleting the scene's actors does not stop them, and a warp while
+// conducting left them sounding in the next scene for good. The player conducts on through the fade-out
+// (restarting them on each beat), so they are stopped as JAIZelInst::reset does once the next PLAY scene
+// runs (warpAudioFrame); the auftakt, which only the next beat's sounds end, as well.
+fpc_ProcID sWarpFromScene = fpcM_ERROR_PROCESS_ID_e; // the PLAY scene a warp ordered here leaves
+
+void noteWarp() {
+    if (void* scene = fpcM_Search(isPlayScene, nullptr); scene != nullptr) {
+        sWarpFromScene = fpcM_GetID(scene);
+    }
+}
+
+void warpAudioFrame() {
+    if (sWarpFromScene == fpcM_ERROR_PROCESS_ID_e) {
+        return;
+    }
+    void* scene = fpcM_Search(isPlayScene, nullptr);
+    if (scene == nullptr || fpcM_GetID(scene) == sWarpFromScene || fpcM_IsCreating(fpcM_GetID(scene))) {
+        return;
+    }
+    sWarpFromScene = fpcM_ERROR_PROCESS_ID_e;
+    mDoAud_tact_reset();
+    mDoAud_seStop(JA_SE_WTAKT_AUFTAKT);
+    mDoAud_seStop(JA_SE_WTAKT_AUFTAKT_4);
+    mDoAud_seStop(JA_SE_WTAKT_AUFTAKT_6);
+}
+
 void doWarp(const Warp& w) {
     if (!inPlay()) {
         toast(T("El viaje solo funciona durante la partida", "Travel only works in the game"));
         return;
     }
     setOpen(false);
+    noteWarp();
     writef(STDERR_FILENO, "[cos] menu: warp to %s room %d point %d\n", w.stage, w.room, w.point);
     dComIfGp_setNextStage(w.stage, (s16)w.point, (s8)w.room, -1);
 }
@@ -763,9 +899,44 @@ void doSailing() {
     }
     applySailingPreset(true);
     setOpen(false);
+    noteWarp();
     writef(STDERR_FILENO, "[cos] menu: sailing preset, warp to %s room %d point %d\n", kSailingSpawn.stage,
            kSailingSpawn.room, kSailingSpawn.point);
     dComIfGp_setNextStage(kSailingSpawn.stage, (s16)kSailingSpawn.point, (s8)kSailingSpawn.room, -1);
+}
+
+// Calidad de vida > "Experiencia BetterWW" / "Valores originales": every QoL row set at once, as if
+// changed by hand (saved to settings.ini, each row still editable after). BetterWW's own defaults
+// (wwr_ui/randomizer_window.ui at 4501481): everything on but the full sea chart and the unrestricted
+// boat; its "remove title and ending videos" also skips the intro and fixes the original's bugs (the
+// videos part is not an option here: the port plays no THP video yet, docs/QOL_PLAN.md).
+struct QolPresetValue {
+    PcQol which;
+    const char* betterww;
+};
+const QolPresetValue kQolPreset[] = {
+    {PC_QOL_INSTANT_TEXT, "1"}, {PC_QOL_FAST_ROLL, "1"},      {PC_QOL_FAST_BLOCKS, "1"},
+    {PC_QOL_FAST_GRAPPLE, "1"}, {PC_QOL_FAST_CLIMB, "1"},     {PC_QOL_FAST_BALLAD, "1"},
+    {PC_QOL_SKIP_INTRO, "1"},   {PC_QOL_REVEAL_CHART, "0"},
+    {PC_QOL_TINGLE_CHESTS, "1"}, {PC_QOL_SAIL, "swift"},      {PC_QOL_FREE_BOAT, "0"},
+    {PC_QOL_SWING_TURN, "1"},   {PC_QOL_NO_SONG_REPLAY, "1"}, {PC_QOL_FIX_BUGS, "1"},
+};
+static_assert(sizeof(kQolPreset) / sizeof(kQolPreset[0]) == PC_QOLS, "a QoL option without a preset value");
+
+void applyQolPreset(bool betterww) {
+    int locked = 0;
+    for (const QolPresetValue& p : kQolPreset) {
+        const char* key = pc_qol_key(p.which);
+        if (pc_settings_locked(key)) {
+            locked++;
+            continue;
+        }
+        pc_settings_set_mode(key, pc_settings_mode(), betterww ? p.betterww : "0");
+    }
+    writef(STDERR_FILENO, "[cos] menu: QoL preset %s applied (%d rows set by the environment kept)\n",
+           betterww ? "BetterWW" : "original", locked);
+    toast(betterww ? T("Calidad de vida: valores de BetterWW", "Quality of life: BetterWW's values")
+                   : T("Calidad de vida: juego original", "Quality of life: the original game"));
 }
 
 void activate(const Row& r, int dir) {
@@ -790,6 +961,12 @@ void activate(const Row& r, int dir) {
     case RowKind::Screenshot:
         if (dir == 0) {
             m.pendingShot = true;
+        }
+        break;
+    case RowKind::QolBetterWW:
+    case RowKind::QolOriginal:
+        if (dir == 0) {
+            applyQolPreset(r.kind == RowKind::QolBetterWW);
         }
         break;
     case RowKind::Reload:
@@ -900,6 +1077,8 @@ std::string rowLabel(const Row& r) {
     case RowKind::Sailing: return T("Navegar (barco, vela y batuta)", "Sail (boat, sail and baton)");
     case RowKind::Screenshot: return T("Capturar pantalla", "Take a screenshot");
     case RowKind::Reload: return T("Recargar ajustes del archivo", "Reload settings from the file");
+    case RowKind::QolBetterWW: return T("Experiencia BetterWW", "BetterWW experience");
+    case RowKind::QolOriginal: return T("Valores originales", "Original values");
     case RowKind::Setting: break;
     }
     std::string s = settingLabel(r.desc);
@@ -917,6 +1096,8 @@ std::string rowValue(const Row& r) {
     case RowKind::Sailing: return inPlay() ? T("A: zarpar", "A: set sail") : T("solo en partida", "in game only");
     case RowKind::Screenshot: return T("A: capturar", "A: capture");
     case RowKind::Reload: return T("A: recargar", "A: reload");
+    case RowKind::QolBetterWW:
+    case RowKind::QolOriginal: return T("A: aplicar", "A: apply");
     case RowKind::Setting: break;
     }
     return choiceLabel(r.desc, pc_settings_get_mode(r.desc->key, rowMode(r.desc)));
@@ -966,6 +1147,16 @@ std::string rowHelp(const Row& r) {
                  "Saves the game's image (without the menu) as shot-<frame>.png in the game's folder.");
     case RowKind::Reload:
         return std::string(T("Vuelve a leer ", "Reads ")) + pc_settings_path() + T(".", " again.");
+    case RowKind::QolBetterWW:
+        return T("Pone las opciones de esta pestaña como las trae BetterWW (de WideBoner, basado en el "
+                 "randomizer wwrando de LagoLunatic): todo activado menos la carta náutica completa y el barco "
+                 "sin restricciones; vela rápida. Después se puede cambiar cada opción.",
+                 "Sets this tab's options to BetterWW's defaults (by WideBoner, based on LagoLunatic's wwrando "
+                 "randomizer): everything on but the full sea chart and the unrestricted boat; Swift Sail. "
+                 "Each option can be changed afterwards.");
+    case RowKind::QolOriginal:
+        return T("Desactiva todas las opciones de esta pestaña: el juego original.",
+                 "Turns every option of this tab off: the original game.");
     case RowKind::Setting: break;
     }
     const char* descHelp = settingHelp(r.desc);
@@ -1166,6 +1357,7 @@ void smokeError(const char* fmt, const std::string& a, const std::string& b = ""
 //   overlay <0|1>            the FPS overlay is shown
 //   alloc-failures <n>       JKR allocations that failed since the start (bug B8: 0)
 //   riding <0|1>             the player rides the boat with the sail on X (Depuración > Navegar)
+//   no-se <id>[,<id>...]     JAudio has none of these sound effects (hex ids) registered (pc_audio_state.cpp)
 //   card-roundtrip <stage> [<room>]  the game saved through its save screen: the card's save file (the
 //                            run's own card, "#card run") loads back (mDoMemCd_Load, checksum of
 //                            the file the game uses, card_to_memory) with the items the player has now
@@ -1381,6 +1573,26 @@ void smokeFrame(unsigned int frame) {
             }
         } else if (e.kind == "card-roundtrip") {
             checkCardRoundtrip(e.a, e.b);
+        } else if (e.kind == "no-se") {
+            for (const char* p = e.a.c_str(); *p != '\0';) {
+                char* end = nullptr;
+                const u32 id = (u32)strtoul(p, &end, 16);
+                if (end == p) {
+                    smokeError("no-se: bad id list %s%s", e.a);
+                    break;
+                }
+                const int n = audioSeRegistered(id);
+                char idText[16];
+                snprintf(idText, sizeof(idText), "%04x", (unsigned)id);
+                if (n != 0) {
+                    char line[1536];
+                    audioStateLine(line, sizeof(line));
+                    smokeError("sound effect %s still registered (%s)", idText, line);
+                } else {
+                    writef(STDERR_FILENO, "[cos] options-menu: ok no sound effect %s\n", idText);
+                }
+                p = *end == ',' ? end + 1 : end;
+            }
         } else {
             smokeError("unknown #expect %s%s", e.kind);
         }
@@ -1473,13 +1685,74 @@ struct DebugWarp {
     bool pending = false;
     char stage[8] = {};
     int room = 0, point = 0;
+    int layer = -1;  // -1: the game's own choice (time of day, story)
 } sDebugWarp;
+// "event NAME": an event of the stage's event list ordered as the event sweep orders it (the player as the
+// ordering actor, pc_event_sweep.cpp), every frame until an event runs, kDebugEventFrames at most. For
+// testing a cutscene without a save at that point (issue #3: warp Pjavdou 0 1 8, then event getperl_jab).
+constexpr unsigned int kDebugEventFrames = 240;
+struct DebugEvent {
+    bool pending = false;
+    char name[32] = {};
+    unsigned int frames = 0;
+} sDebugEvent;
+// "give NAME|ITEM ...": items through the game's own item-get functions (execItemGet, d_item.cpp: the
+// inventory slot, the "got it" bit, the song bits, the bomb count), applied by the game thread once a file
+// is played and the player exists, as a chest or a shop would. For testing the QoL options on the player's
+// own save (docs/DEBUG_SERVER.md).
+struct DebugGive {
+    int count = 0;
+    u8 items[16] = {};
+} sDebugGive;
+// "time": the hour (0-24) set at the next frame end of a file being played (< 0: none); "take": the
+// dungeon items taken away there (bit 0 the map, bit 1 the compass)
+struct DebugTime {
+    float hour = -1.0f;
+    unsigned take = 0;
+    bool clear = false; // "weather clear": the sea's dice weather back to sunny
+} sDebugTime;
+// "audio": a pc_audio_state.cpp line taken by the game thread at its next frame end (ticket = the request
+// count, done = the last request answered).
+struct DebugAudio {
+    unsigned int requested = 0;
+    unsigned int done = 0;
+    char line[1536] = {};
+} sDebugAudio;
 struct DebugStatus {
     unsigned int frame = 0;
     bool play = false;
     char stage[8] = {};
     int room = -1;
 } sDebugStatus;
+
+// The names "give" takes (item numbers: d_item_data.h). The Grappling Hook (0x25, d_a_himo2: what
+// "Garfio más rápido" changes) is not the Hookshot (0x2F).
+struct DebugItemName {
+    const char* name;
+    u8 item;
+};
+const DebugItemName kDebugItemNames[] = {
+    {"grapple", dItemNo_GRAPPLING_HOOK_e},   {"grappling", dItemNo_GRAPPLING_HOOK_e},
+    {"garfio", dItemNo_GRAPPLING_HOOK_e},    {"hookshot", dItemNo_HOOKSHOT_e},
+    {"gancho", dItemNo_HOOKSHOT_e},          {"baton", dItemNo_WIND_WAKER_e},
+    {"windwaker", dItemNo_WIND_WAKER_e},     {"batuta", dItemNo_WIND_WAKER_e},
+    {"requiem", dItemNo_WINDS_REQUIEM_e},    {"ballad", dItemNo_BALLAD_OF_GALES_e},
+    {"balada", dItemNo_BALLAD_OF_GALES_e},   {"bombs", dItemNo_BOMB_BAG_e},
+    {"bombas", dItemNo_BOMB_BAG_e},          {"sail", dItemNo_SAIL_e},
+    {"vela", dItemNo_SAIL_e},                {"telescope", dItemNo_TELESCOPE_e},
+    {"bow", dItemNo_BOW_e},                  {"arco", dItemNo_BOW_e},
+    {"map", dItemNo_MAP_e},                  {"mapa", dItemNo_MAP_e},
+    {"compass", dItemNo_COMPASS_e},          {"brujula", dItemNo_COMPASS_e},
+};
+
+const char* debugItemName(u8 item) {
+    for (const DebugItemName& n : kDebugItemNames) {
+        if (n.item == item) {
+            return n.name;
+        }
+    }
+    return "by number";
+}
 
 void debugFrameEnd(unsigned int frame) {
     const bool play = inPlay();
@@ -1492,14 +1765,85 @@ void debugFrameEnd(unsigned int frame) {
     if (sDebugWarp.pending && play && !dComIfGp_isEnableNextStage()) {
         sDebugWarp.pending = false;
         setOpen(false);
-        writef(STDERR_FILENO, "[cos] debug server: warp to %s room %d point %d\n", sDebugWarp.stage, sDebugWarp.room,
-               sDebugWarp.point);
-        dComIfGp_setNextStage(sDebugWarp.stage, (s16)sDebugWarp.point, (s8)sDebugWarp.room, -1);
+        noteWarp();
+        writef(STDERR_FILENO, "[cos] debug server: warp to %s room %d point %d layer %d\n", sDebugWarp.stage,
+               sDebugWarp.room, sDebugWarp.point, sDebugWarp.layer);
+        dComIfGp_setNextStage(sDebugWarp.stage, (s16)sDebugWarp.point, (s8)sDebugWarp.room, (s8)sDebugWarp.layer);
+    }
+    if (sDebugGive.count > 0 && play && !dComIfGp_isEnableNextStage() && dComIfGp_getPlayer(0) != nullptr) {
+        for (int i = 0; i < sDebugGive.count; i++) {
+            u8 item = sDebugGive.items[i];
+            if (item == dItemNo_BOMB_BAG_e && dComIfGs_getItem(dInvSlot_BOMB_e) != dItemNo_NONE_e) {
+                item = dItemNo_BOMB_30_e; // the bag would set a bigger bag back to 30
+            }
+            execItemGet(item);
+            // the game's own "does the player have it" check for that item (-1: none for this item)
+            writef(STDERR_FILENO, "[cos] debug server: gave item 0x%02X (%s); the game's check says %d; bombs %u/%u\n",
+                   item, debugItemName(item), (int)checkItemGet(item, -1), (unsigned)dComIfGs_getBombNum(),
+                   (unsigned)dComIfGs_getBombMax());
+        }
+        sDebugGive.count = 0;
+    }
+    if (sDebugTime.hour >= 0.0f && play) {
+        // the save's time, which dScnKy_env_light_c::setDaytime copies to mCurTime every frame (15 degrees an hour)
+        dComIfGs_setTime(sDebugTime.hour * 15.0f);
+        writef(STDERR_FILENO, "[cos] debug server: time set to %.2f h\n", sDebugTime.hour);
+        sDebugTime.hour = -1.0f;
+    }
+    if (sDebugTime.clear && play) {
+        // the sea's dice weather (d_kankyo.cpp dKy_wether_dice: every pattern starts cloudy or rainy, and a
+        // jump in time starts one): sunny, the pattern ended, the next roll 179 degrees (about 12 h) away
+        dScnKy_env_light_c& env = dKy_getEnvlight();
+        env.mDiceWeatherMode = DICE_MODE_SUNNY_e;
+        env.mDiceWeatherState = DICE_STATE_RESET_e;
+        env.mDiceWeatherChangeTime = fmodf(dComIfGs_getTime() + 179.0f, 360.0f);
+        writef(STDERR_FILENO, "[cos] debug server: weather clear (next roll at %.1f h)\n",
+               env.mDiceWeatherChangeTime / 15.0f);
+        sDebugTime.clear = false;
+    }
+    if (sDebugTime.take != 0 && play) {
+        if (sDebugTime.take & 1) {
+            dComIfGs_offDungeonItemMap();
+        }
+        if (sDebugTime.take & 2) {
+            dComIfGs_offDungeonItemCompass();
+        }
+        writef(STDERR_FILENO, "[cos] debug server: took the stage's%s%s; map %d compass %d\n",
+               (sDebugTime.take & 1) ? " map" : "", (sDebugTime.take & 2) ? " compass" : "",
+               (int)dComIfGs_isDungeonItemMap(), (int)dComIfGs_isDungeonItemCompass());
+        sDebugTime.take = 0;
+    }
+    if (sDebugAudio.requested != sDebugAudio.done) {
+        audioStateLine(sDebugAudio.line, sizeof(sDebugAudio.line));
+        sDebugAudio.done = sDebugAudio.requested;
+        writef(STDERR_FILENO, "[cos] debug server: audio %s\n", sDebugAudio.line);
+    }
+    if (sDebugEvent.pending && play && !dComIfGp_isEnableNextStage() && dComIfGp_getPlayer(0) != nullptr) {
+        if (sDebugEvent.frames > 0 && dComIfGp_event_runCheck()) {
+            sDebugEvent.pending = false;
+            writef(STDERR_FILENO, "[cos] debug server: event %s running\n", sDebugEvent.name);
+        } else if (sDebugEvent.frames++ >= kDebugEventFrames) {
+            sDebugEvent.pending = false;
+            writef(STDERR_FILENO, "[cos] debug server: event %s did not start\n", sDebugEvent.name);
+        } else {
+            const s16 idx = dComIfGp_evmng_getEventIdx(sDebugEvent.name);
+            if (idx < 0) {
+                sDebugEvent.pending = false;
+                writef(STDERR_FILENO, "[cos] debug server: no event %s in this stage's list\n", sDebugEvent.name);
+            } else {
+                // from the play scene's layer, as the sweep (a process made from the root layer is drawn twice)
+                layer_class* saved = fpcLy_CurrentLayer();
+                fpcLy_SetCurrentLayer(&static_cast<process_node_class*>((void*)fpcM_Search(isPlayScene, nullptr))->mLayer);
+                fopAcM_orderOtherEventId(dComIfGp_getPlayer(0), idx, 0xFF, 0xFFFF, 1);
+                fpcLy_SetCurrentLayer(saved);
+            }
+        }
     }
 }
 
 void menuFrameEnd(unsigned int frame) {
     debugFrameEnd(frame);
+    warpAudioFrame();
     if (m.pendingShot) {
         m.pendingShot = false;
         if (captureFrame(frame, saveShot, nullptr)) {
@@ -1532,9 +1876,10 @@ extern "C" int pc_debug_warp_list(char* out, size_t size) {
     return (int)std::min(used, size);
 }
 
-// A warp from the debug server: index >= 0 picks the list's entry, else stage / room / point. The game thread
-// applies it once a file is being played (pc_menu debugFrameEnd). 0: no such entry.
-extern "C" int pc_debug_warp(int index, const char* stage, int room, int point, char* done, size_t size) {
+// A warp from the debug server: index >= 0 picks the list's entry, else stage / room / point / layer (-1: the
+// game's choice; e.g. 8 for Jabun's cave with Jabun, Pjavdou 0 1 8). The game thread applies it once a file is
+// being played (pc_menu debugFrameEnd). 0: no such entry.
+extern "C" int pc_debug_warp(int index, const char* stage, int room, int point, int layer, char* done, size_t size) {
     pc::Warp w{stage, room, point, nullptr, nullptr};
     if (index >= 0) {
         if (index >= pc::kMainWarpCount + pc::kAllWarpCount) {
@@ -1547,7 +1892,107 @@ extern "C" int pc_debug_warp(int index, const char* stage, int room, int point, 
     snprintf(pc::sDebugWarp.stage, sizeof(pc::sDebugWarp.stage), "%s", w.stage);
     pc::sDebugWarp.room = w.room;
     pc::sDebugWarp.point = w.point;
-    snprintf(done, size, "%s room %d point %d", pc::sDebugWarp.stage, w.room, w.point);
+    pc::sDebugWarp.layer = index >= 0 ? -1 : layer;
+    snprintf(done, size, "%s room %d point %d layer %d", pc::sDebugWarp.stage, w.room, w.point, pc::sDebugWarp.layer);
+    return 1;
+}
+
+// An event of the current stage's list, by name, from the debug server (see sDebugEvent). 0: name too long.
+extern "C" int pc_debug_event(const char* name) {
+    if (strlen(name) >= sizeof(pc::sDebugEvent.name)) {
+        return 0;
+    }
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    snprintf(pc::sDebugEvent.name, sizeof(pc::sDebugEvent.name), "%s", name);
+    pc::sDebugEvent.frames = 0;
+    pc::sDebugEvent.pending = true;
+    return 1;
+}
+
+// "give": names or item numbers (decimal or 0x..), queued for the game thread (see sDebugGive). Writes
+// what was queued (or the first unknown name) to `done`; 0: an unknown name or too many items.
+// "bombs" is the bomb bag (30 bombs, room for 30); with bombs already, 30 more bombs instead (the bag
+// would set the room back to 30).
+extern "C" int pc_debug_give(const char* const* names, int count, char* done, size_t size) {
+    u8 items[16];
+    int n = 0;
+    size_t len = 0;
+    done[0] = '\0';
+    for (int i = 0; i < count; i++) {
+        int item = -1;
+        for (const pc::DebugItemName& d : pc::kDebugItemNames) {
+            if (strcasecmp(names[i], d.name) == 0) {
+                item = d.item;
+            }
+        }
+        if (item < 0) {
+            char* end = nullptr;
+            const long v = strtol(names[i], &end, 0);
+            if (end != names[i] && *end == '\0' && v >= 0 && v < dItemNo_NONE_e) {
+                item = (int)v;
+            }
+        }
+        if (item < 0 || n >= (int)sizeof(items)) {
+            snprintf(done, size, "%s", names[i]);
+            return 0;
+        }
+        items[n++] = (u8)item;
+        len += (size_t)snprintf(done + len, len < size ? size - len : 0, "%s%s=0x%02X", i > 0 ? " " : "", names[i], item);
+    }
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    for (int i = 0; i < n && pc::sDebugGive.count < (int)sizeof(pc::sDebugGive.items); i++) {
+        pc::sDebugGive.items[pc::sDebugGive.count++] = items[i];
+    }
+    return 1;
+}
+
+// "time": the hour of the day (0-24, decimals allowed), set once a file is being played; 0: out of range.
+extern "C" int pc_debug_time(float hour) {
+    if (!(hour >= 0.0f && hour <= 24.0f)) {
+        return 0;
+    }
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    pc::sDebugTime.hour = hour;
+    return 1;
+}
+
+// "weather clear": the sea's weather back to sunny, applied once a file is being played.
+extern "C" void pc_debug_weather_clear(void) {
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    pc::sDebugTime.clear = true;
+}
+
+// "take": the current stage's dungeon map and/or compass (the save bits "give map"/"give compass" set),
+// taken once a file is being played; 0: an unknown name.
+extern "C" int pc_debug_take(const char* const* names, int count) {
+    unsigned take = 0;
+    for (int i = 0; i < count; i++) {
+        if (strcasecmp(names[i], "map") == 0 || strcasecmp(names[i], "mapa") == 0) {
+            take |= 1;
+        } else if (strcasecmp(names[i], "compass") == 0 || strcasecmp(names[i], "brujula") == 0) {
+            take |= 2;
+        } else {
+            return 0;
+        }
+    }
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    pc::sDebugTime.take |= take;
+    return 1;
+}
+
+// "audio": asks the game thread for a pc_audio_state.cpp line; returns its ticket (pc_debug_audio_done).
+extern "C" unsigned int pc_debug_audio_request(void) {
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    return ++pc::sDebugAudio.requested;
+}
+
+// The line once the game thread answered `ticket` (1), else 0.
+extern "C" int pc_debug_audio_done(unsigned int ticket, char* out, size_t size) {
+    std::lock_guard<std::mutex> lk(pc::sDebugMu);
+    if (pc::sDebugAudio.done < ticket) {
+        return 0;
+    }
+    snprintf(out, size, "%s", pc::sDebugAudio.line);
     return 1;
 }
 

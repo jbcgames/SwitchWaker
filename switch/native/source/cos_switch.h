@@ -15,11 +15,14 @@ extern "C" {
 /* The native port's directory on the SD card, without the "sdmc:" device: sqlite (Aurora's
  * caches) treats a path that does not start with '/' as relative. */
 #define COS_SWITCH_ROOT "/switch/switchwaker/native"
-/* The disc image (scripts/switch/push.sh --disc). */
-#define COS_SWITCH_DEFAULT_DISC "/switch/switchwaker/GZLE01.iso"
-/* The NRO's name: its logs (COS_SWITCH_ROOT/logs/<name>_<date>_<time>.log) and its symbols (<name>.elf):
- * switchwaker, in /switch/switchwaker/ with its bundled caches next to the data above (disc, saves,
- * settings and its [dev] section, Aurora's caches). */
+/* The disc image (scripts/switch/push.sh --disc): GZLE01.iso, GZLP01.iso for the European build
+ * (pc_game_id.h, docs/PAL_DISC_PLAN.md), so both discs can sit side by side. */
+#include "pc/pc_game_id.h"
+#define COS_SWITCH_DEFAULT_DISC "/switch/switchwaker/" PC_GAME_ISO_NAME
+/* The build's name: its logs (COS_SWITCH_ROOT/logs/<name>_<date>_<time>.log) and its symbols (<name>.elf):
+ * switchwaker, or switchwaker-eur for the European build. Both are installed as
+ * /switch/switchwaker/switchwaker.nro, with the bundled caches next to the data above (disc, saves,
+ * settings and its [dev] section, Aurora's caches); the name stays the build's whatever the file's. */
 #ifndef COS_SWITCH_NRO_NAME
 #define COS_SWITCH_NRO_NAME "switchwaker"
 #endif

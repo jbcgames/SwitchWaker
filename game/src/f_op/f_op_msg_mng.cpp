@@ -16,6 +16,9 @@
 #include "JSystem/JUtility/JUTFont.h"
 #include "SSystem/SComponent/c_malloc.h"
 #include "m_Do/m_Do_controller_pad.h"
+#if TARGET_PC
+#include "pc/pc_qol.h"
+#endif
 #include <stdio.h>
 #if VERSION <= VERSION_JPN
 #include "d/d_s_play.h"
@@ -1504,7 +1507,17 @@ mesg_data* fopMsgM_msgGet_c::getMesgData(mesg_header* i_head) {
 /* 8002E308-8002E378       .text getMesgEntry__16fopMsgM_msgGet_cFP11mesg_header */
 JMSMesgEntry_c fopMsgM_msgGet_c::getMesgEntry(mesg_header* i_head) {
     mesg_info* info = getMesgInfo(i_head);
+#if TARGET_PC
+    // QoL "Texto instantáneo" (pc_qol.h; wwrando make_all_text_instant: every message's initial
+    // draw type 1, instant)
+    JMSMesgEntry_c entry = info->mEntries[mMsgIdx];
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        entry.mDrawType = 1;
+    }
+    return entry;
+#else
     return info->mEntries[mMsgIdx];
+#endif
 }
 
 /* 8002E378-8002E430       .text getMessage__16fopMsgM_msgGet_cFP11mesg_header */
@@ -1570,7 +1583,16 @@ mesg_data* fopMsgM_itemMsgGet_c::getMesgData(mesg_header* i_head) {
 /* 8002E4DC-8002E54C       .text getMesgEntry__20fopMsgM_itemMsgGet_cFP11mesg_header */
 JMSMesgEntry_c fopMsgM_itemMsgGet_c::getMesgEntry(mesg_header* i_head) {
     mesg_info* info = getMesgInfo(i_head);
+#if TARGET_PC
+    // QoL "Texto instantáneo": as fopMsgM_msgGet_c::getMesgEntry
+    JMSMesgEntry_c entry = info->mEntries[mMsgIdx];
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        entry.mDrawType = 1;
+    }
+    return entry;
+#else
     return info->mEntries[mMsgIdx];
+#endif
 }
 
 /* 8002E54C-8002E5FC       .text getMessage__20fopMsgM_itemMsgGet_cFP11mesg_header */
@@ -3870,6 +3892,17 @@ void fopMsgM_msgDataProc_c::stringSet() {
             } else if ((u8)bmgData[count + 2] == 0 && (u8)bmgData[count + 3] == 0 && (u8)bmgData[count + 4] == MsgCtrlCode_UNK02) {
                 field_0x29A = 0;
                 count += bmgData[count + 1];
+#if TARGET_PC
+            } else if (
+                // QoL "Texto instantáneo" (pc_qol.h; wwrando make_all_text_instant removes these tags from
+                // every message): the waits UNK03 and WAIT, and UNK04 except in messages 7726 (Maggie's
+                // father's rupees) and 2488 (Orca after the Hurricane Spin), are skipped
+                pc_qol(PC_QOL_INSTANT_TEXT) && (u8)bmgData[count + 2] == 0 && (u8)bmgData[count + 3] == 0 &&
+                ((u8)bmgData[count + 4] == MsgCtrlCode_UNK03 || (u8)bmgData[count + 4] == MsgCtrlCode_WAIT ||
+                 ((u8)bmgData[count + 4] == MsgCtrlCode_UNK04 && mesgEntry->mMsgNo != 7726 && mesgEntry->mMsgNo != 2488))
+            ) {
+                count += bmgData[count + 1];
+#endif
             } else if ((u8)bmgData[count + 2] == 0 && (u8)bmgData[count + 3] == 0 && (u8)bmgData[count + 4] == MsgCtrlCode_UNK03) {
                 waitTimer = (u8)bmgData[count + 5] << 8;
                 waitTimer |= (u8)bmgData[count + 6];
@@ -6053,7 +6086,13 @@ void fopMsgM_msgDataProc_c::getRubyString(char* param_1, char* param_2, char* pa
 /* 80035D28-80035E40       .text tag_len_kaisen_game__21fopMsgM_msgDataProc_cFPiPfPiPiPi */
 void fopMsgM_msgDataProc_c::tag_len_kaisen_game(int* param_1, f32* param_2, int* param_3, int* param_4, int* param_5) {
     int i = 0;
+#if TARGET_PC && VERSION == VERSION_PAL
+    // PAL: "24 ca\361onazos" / "24 cannonate" and the NUL take 13 bytes; the GameCube code overflows
+    // buf into its stack frame, the host's fortified strcat aborts (as tag_len_num_input's below).
+    char buf[16];
+#else
     char buf[12];
+#endif
     fopMsgM_int_to_char(buf, dComIfGs_getEventReg(dSv_event_flag_c::UNK_BEFF), false);
 
 #if VERSION == VERSION_PAL
@@ -9459,7 +9498,12 @@ void fopMsgM_msgDataProc_c::tag_stock_kenshi() {
         nowCursorPos = field_0x108[lineCount] + field_0x14 + 0.5f;
     }
 
+#if TARGET_PC && VERSION == VERSION_PAL
+    // PAL German: " Ritterwappen" and the NUL take 14 bytes (the GameCube code overflows buf2).
+    char buf2[16];
+#else
     char buf2[12];
+#endif
 
 #if VERSION == VERSION_PAL
     if (dComIfGs_getPalLanguage() == 1) {

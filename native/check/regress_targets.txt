@@ -129,6 +129,24 @@ options-menu 0 --stage sea:44:206 --input native/check/input/menu-sailing.txt
 # 60 fps from the options menu (Rendimiento > "60 fps (interpolación)", COS_FPS60): turned on live, the
 # game frames are then presented twice (docs/FPS60_PLAN.md)
 options-menu 0 --stage sea:44:206 --input native/check/input/menu-fps60.txt
+# Calidad de vida (docs/QOL_PLAN.md): a QoL row turned on from the menu, saved, then in effect live
+options-menu 0 --stage sea:11:0 --input native/check/input/menu-qol.txt
+# a warp from the menu in the middle of conducting the Wind Waker (Y on the boat, then Depuración > Viajar):
+# the baton's metronome, drone and pulse loops have no actor position, so the scene change did not end them
+# and they sounded on at Windfall for good; the next PLAY scene now stops them (fails without the fix)
+options-menu 0 --preset sailing --input native/check/input/menu-warp-conducting.txt
+# Calidad de vida's "Experiencia BetterWW" (every QoL row to BetterWW's defaults, saved, still editable) and
+# "Valores originales" (every row off)
+options-menu 0 --stage sea:11:0 --input native/check/input/menu-qol-preset.txt
+options-menu 0 --stage sea:11:0 --input native/check/input/menu-qol-original.txt
+# QoL "Barco sin restricciones" (COS_QOL_FREE_BOAT): the sailing smoke before Dragon Roost's arrival (0x0902
+# cleared) crosses into room 18, which the boat's story path 0 forbids then (it fails with the option off), and
+# with neither 0x1980 nor 0x0A80 the boat still offers "get in" (the reboard fails with the option off)
+sailing 0 --preset sailing --env COS_BOOT_EVENTS_OFF=0902 --env COS_QOL_FREE_BOAT=1
+sailing 0 --preset sailing --env COS_BOOT_EVENTS_OFF=1980,0A80 --env COS_QOL_FREE_BOAT=1
+# QoL "Saltar la introducción" (COS_QOL_SKIP_INTRO): M14's real new-game flow without the prologue; the name
+# scene requests the PLAY scene itself, Outset's intro event plays and the player is controllable
+outset-real 0 --input native/check/input/new-game-skip-intro.txt --env COS_QOL_SKIP_INTRO=1
 static-init 2 --preset bogus
 # COS_SMOKE=sailing (lane sailing): the sailing preset's boot on the boat, off it with A and back on
 # with A after swimming to it (bug B17: the preset lacked event bits 0x0A80/0x1980), the wind turned north (the wind
@@ -148,6 +166,14 @@ wind-screen 0 --preset sailing
 # COS_SMOKE=ky-procs (bug B22): the storm's lightning, a water mark and a water pillar created as the
 # game creates them; the lightning's GameCube-sized heap failed, so no lightning appeared in storms
 ky-procs 0 --preset sailing
+# COS_SMOKE=sun-glare (issue #7): the evening sun in view at sea; its five GXPeekZ check points read the
+# sky's depth, so the lens flare and the glare draw (the deko3d renderer read 0 for every peek: no glare)
+sun-glare 0 --preset sailing --input native/check/input/sun-glare.txt --env COS_BOOT_TIME=17.5
+sun-glare 0 --preset sailing --input native/check/input/sun-glare.txt --env COS_BOOT_TIME=17.5 --aspect 16:9
+# COS_SUN_GLARE_CHECK=sail (the sail hiding the low sun, native/check/input/sun-glare-sail.txt) is not
+# here: it counts frames, and under the regression's parallel load the sweep lands a few frames off and
+# fails (2026-10-12). Run it by hand: run.sh sun-glare --preset sailing --input
+# native/check/input/sun-glare-sail.txt --env COS_BOOT_TIME=17.0 --env COS_SUN_GLARE_CHECK=sail --aspect 16:9
 # COS_SMOKE=picto-box (bug B36): photos with the picto box (I8) and the deluxe picto box (RGB565);
 # the copy is read back to RAM for the capture thread's CMPR encoder (it panicked on the empty buffer)
 picto-box 0 --stage Asoko:0:0:2 --input native/check/input/picto-box.txt
@@ -184,3 +210,11 @@ event-sweep 0 --stage sea:1:0 --env COS_EVENT_SWEEP=120 --env COS_EVENT_SWEEP_SE
 # its stage change
 event-sweep 0 --stage Edaichi:0:0 --env COS_EVENT_SWEEP=61 --env COS_BOOT_EVENTS=2D01 --env COS_EVENT_SWEEP_DEMOS=dance_zola.stb:27
 event-sweep 0 --stage Ekaze:0:0 --env COS_EVENT_SWEEP=60 --env COS_BOOT_EVENTS=2D01 --env COS_EVENT_SWEEP_DEMOS=dance_kokiri.stb:30
+# COS_SMOKE=event-sweep (bug B39, issue #3): Jabun's cutscene (getperl_jab.stb in Demo18) names a BTK
+# as a model's BRK (dropped by B35, so the model had no BRK) and later a real BRK for it, which
+# actPerformance initialised through the missing BRK (SIGSEGV). The demo plays to its stage change
+event-sweep 0 --stage Pjavdou:0:1:8 --preset sailing --env COS_EVENT_SWEEP=64 --env COS_EVENT_SWEEP_SECONDS=60
+# COS_SMOKE=dmap (issue #6): the dungeon map screen (Up in Dragon Roost Cavern, map and compass given) draws
+# the rooms: the floor TLUT's palette lookup read the big-endian dmap%d.bti palette in host order, so the
+# TLUT stayed transparent and the map showed its grid alone
+dmap 0 --stage M_NewD2:0:0

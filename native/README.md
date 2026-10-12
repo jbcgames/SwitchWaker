@@ -36,7 +36,8 @@ below are the whole procedure from a fresh clone; the sections after this one ex
 - The network for the one-time setup and the first configure: RecompCore, the decomp and its
   `dtk` binary, Aurora and the dependencies it fetches (prebuilt Dawn and nod packages, SDL3,
   abseil, fmt...).
-- Your own disc image of the game, USA, revision 0 (`GZLE01`), as a plain `.iso`. Nothing
+- Your own disc image of the game, USA, revision 0 (`GZLE01`), as a plain `.iso` (or the European
+  disc, `GZLP01`, for a `-DCOS_VERSION=3` build: [docs/PAL_DISC_PLAN.md](../docs/PAL_DISC_PLAN.md)). Nothing
   derived from it goes into git: the generated files stay under `build/`, which is ignored.
 
 **One-time setup** (from the repository root)
@@ -137,7 +138,8 @@ the `audio` module since step 3.7.
 ### Layout
 
 - `native/CMakeLists.txt`: the project; `native/cmake/GameConfig.cmake`: definitions
-  (`TARGET_PC=1`, `VERSION=2` for GZLE01, `NDEBUG=1`), include paths and flags, on the interface
+  (`TARGET_PC=1`, `VERSION=2` for GZLE01 or `VERSION=3` for GZLP01 with `-DCOS_VERSION=3`,
+  `COS_GAME_ID_STR`, `NDEBUG=1`), include paths and flags, on the interface
   target `cos_game_headers` (Dusklight's `dusklight_game_headers`); `native/cmake/modules.cmake`:
   the modules; `native/cmake/deferred.cmake`: the units left for a later phase, each with its
   reason (`cos_defer(path "reason")`).
@@ -171,6 +173,7 @@ Python 3.10 or newer and, the first time, the network:
 
 ```sh
 native/tools/gen_assets.sh --disc /path/to/GZLE01.iso    # or COS_DISC=...; --out DIR for another COS_ASSETS_DIR
+native/tools/gen_assets.sh --version GZLP01 --disc /path/to/GZLP01.iso   # the European build's
 ```
 
 By hand, with a built checkout of the decomp (`python configure.py && ninja` for GZLE01):
@@ -411,7 +414,8 @@ COS_DISC=/nonexistent build/native-mac/switchwaker; echo $?   # 14
 
 | Variable | Meaning |
 | --- | --- |
-| `COS_DISC` | the GZLE01 revision 0 `.iso` (required to boot; `run.sh --disc PATH` sets it, and `run.sh`, `regress.sh` and `disc_manifest.py` stop with exit 14 when neither is given) |
+| `COS_DISC` | the GZLE01 revision 0 `.iso`, GZLP01 for a European build (required to boot; `run.sh --disc PATH` sets it, and `run.sh`, `regress.sh` and `disc_manifest.py` stop with exit 14 when neither is given) |
+| `COS_GAME_LANGUAGE` | European build: `auto` (the save's language, else the system's), `en`, `de`, `fr`, `es`, `it` (the options menu's *Idioma del juego*; restart). `run.sh` sets `en` unless given |
 | `COS_SMOKE` | a smoke test: `static-init`, and the harness self-tests `crash-test`, `panic-test`, `stall-test`, `timeout-test` |
 | `COS_MILESTONE` | exit 0 when this milestone (M0-M14 names: `static-init`, `aurora-up`, `heaps`, ...) is logged |
 | `COS_TIMEOUT_S`, `COS_STALL_S` | watchdog: exit 10 after this long; exit 11 when the game frame counter is frozen this long (0/unset: off) |
@@ -492,7 +496,7 @@ Exit codes: 0 reached, 1 smoke check failed, 2 usage error, 10 timeout, 11 stall
 `pc_menu.cpp` / `pc_settings.cpp` (API: `native/include/pc/pc_settings.h`): an ImGui options window
 opened with **F1** or **L+R+Z** (a GameCube-style pad; a `COS_INPUT` script only in `COS_SMOKE=options-menu`) on the Mac and
 **Minus** on the Switch (ZL+ZR+Minus elsewhere); **B**/Esc or the same button(s) close it. Tabs *Gráficos*,
-*Rendimiento* and *Depuración* (*Graphics*, *Performance*, *Debug* in English; a help line for the selected row); controller
+*Rendimiento*, *Calidad de vida* and *Depuración* (*Graphics*, *Performance*, *Quality of life*, *Debug* in English; a help line for the selected row); controller
 (D-pad/stick, A change, B back, L/R tab), keyboard (arrows, Enter, Esc, Q/E) or mouse. While it is
 open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad input.
 
@@ -512,6 +516,10 @@ open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad in
 - Gráficos > "Resolución dinámica" (`COS_DYNRES`, per operation mode): "Con 60 fps" / "With 60 fps"
   (`auto`, the default: only while the 60 fps row is on), "Desactivada" / "Off" (`0`: never, even
   with 60 fps) or "Siempre" / "Always" (`1`). Levels down to 2/3 of the internal resolution.
+- Calidad de vida (`native/include/pc/pc_qol.h`, `docs/QOL_PLAN.md`, issue #4): BetterWW's and wwrando's
+  quality-of-life patches redone in the game's code, one row each (`COS_QOL_*`), all off by default
+  (the original game) and live. `COS_TRACE=qol` prints a line per frame for their checks
+  (`native/src/pc/harness/smokes/pc_qol_probe.cpp`).
 - Depuración: travel to a stage (main places by name, and every stage of the disc with the start
   `boot_sweep.py --list` picks; PLAY scene only), "Navegar (barco, vela y batuta)" (the sailing
   preset of `COS_BOOT_PRESET=sailing` on the file being played, in memory only, then to Windfall's
@@ -521,7 +529,7 @@ open the PLAY scene is paused (hit-stop pause timer) and the game gets no pad in
   stats lines (`COS_HD_STATS_EVERY`), the GPU timers per group (`COS_GPU_GROUPS`), the USB live log
   (`COS_USB_LOG`, Switch), and the debug server (`COS_DEBUG_SERVER`, Switch, at the
   next start).
-  Gráficos and Rendimiento keep the options meant for players.
+  Gráficos, Rendimiento and Calidad de vida keep the options meant for players.
 - Values are saved to `user/settings.ini` next to the executable (Switch:
   `/switch/switchwaker/native/user/settings.ini`; `COS_SETTINGS=<path>` names another file,
   and `run.sh` gives every run its own `<run dir>/settings.ini`). Lines `NAME=value`, or

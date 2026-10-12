@@ -7,13 +7,18 @@ log says '[switch] debug server listening on <ip>:6543'. The console's address: 
   switchwaker_debug.py info                      build, frame, stage, memory, address
   switchwaker_debug.py log [--all] [--save F] [--grep RE] [--seconds N]
                                                  the log as it is written (Ctrl-C ends it)
-  switchwaker_debug.py deploy [NRO] [--no-reload] [--nro-only]
-                                                 upload the NRO (default build/switch-native/switchwaker.nro)
-                                                 and the caches built next to it,
-                                                 check it, restart
+  switchwaker_debug.py deploy [NRO] [--eur] [--force] [--no-reload] [--nro-only]
+                                                 upload the NRO (default build/switch-native/switchwaker.nro;
+                                                 --eur: build/switch-native-eur/switchwaker-eur.nro) as
+                                                 switchwaker.nro, and the caches built next to it,
+                                                 check it, restart; refused when the running game's
+                                                 region differs (--force)
   switchwaker_debug.py shot [OUT.png] [--game]   screenshot of the next frame
   switchwaker_debug.py press A [B ...] [ms]      also hold, release, stick L|R x y [ms]
-  switchwaker_debug.py warps | warp N | warp STAGE [ROOM] [POINT]
+  switchwaker_debug.py warps | warp N | warp STAGE [ROOM] [POINT] [LAYER]
+  switchwaker_debug.py event NAME                an event of the stage's event list (e.g. getperl_jab)
+  switchwaker_debug.py give ITEM [ITEM ...]      items through the game's item-get (grapple baton ballad bombs, 0x25)
+  switchwaker_debug.py audio                     what the game's audio plays (sound effects, SE tracks, BGM)
   switchwaker_debug.py get REMOTE [LOCAL] | put LOCAL REMOTE | ls [REMOTE] | rm REMOTE | mkdir REMOTE
   switchwaker_debug.py logs | lastlog [LOCAL]    session logs (native/logs/); the newest one (also while it runs)
   switchwaker_debug.py crashes [--fetch DIR]     Atmosphere's crash reports
@@ -42,8 +47,13 @@ ENV_PORT = "SWITCHWAKER_DEBUG_PORT"
 DEFAULT_NRO = REPO / "build" / "switch-native" / "switchwaker.nro"
 BUILD_HINT = "scripts/switch/build_native.sh"
 REMOTE_NRO = "switchwaker.nro"          # relative to the server's root, sdmc:/switch/switchwaker
+# The European NRO (deploy --eur): installed as REMOTE_NRO too (one region per SD card; the HOME-menu
+# forwarder starts either). The disc each build runs, as info's "game" line names it. None where there
+# is no such build.
+DEFAULT_NRO_EUR = REPO / "build" / "switch-native-eur" / "switchwaker-eur.nro"
+GAME_USA, GAME_EUR = "GZLE01", "GZLP01"
 REMOTE_LOGS = "native/logs"
-SESSION_LOG = r"switchwaker(?:_gl|_dk)?_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.log"
+SESSION_LOG = r"switchwaker(?:_gl|_dk|-eur)?_\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.log"
 
 
 class ServerError(Exception):
@@ -127,7 +137,7 @@ def connect(args, timeout=10.0):
 
 
 # Commands that change the console's files or the running game.
-CHANGING_COMMANDS = ("deploy", "put", "rm", "mkdir", "reload", "quit", "crash", "warp", "press", "hold",
+CHANGING_COMMANDS = ("deploy", "put", "rm", "mkdir", "reload", "quit", "crash", "warp", "event", "give", "press", "hold",
                      "release", "stick", "raw")
 
 
@@ -146,6 +156,7 @@ def check_game(args):
     if version.startswith("v") or "(" in version:
         sys.exit(f"the console runs another game ({first.strip()}), not {PORT_NAME}: nothing sent. "
                  f"Start {PORT_NAME} and try again.")
+    return text
 
 
 def simple(args, *cmd, timeout=30.0):
@@ -243,18 +254,40 @@ def wait_server(args, seconds):
     return False
 
 
+def region_guard(args, eur):
+    """The NRO replaces the running one at the same path: one of the other region would not start with the
+    console's disc (a USA console's GZLE01.iso, a European build). Refused unless --force."""
+    if GAME_EUR is None:
+        return
+    want = GAME_EUR if eur else GAME_USA
+    m = re.search(r"^game (\S+)", args.info or "", re.M)
+    if m is None:
+        print(f"note: the running build does not say its game (older than info's game line): "
+              f"cannot check that it is {want} like this NRO", file=sys.stderr)
+        return
+    if m.group(1) != want and not args.force:
+        sys.exit(f"the console runs the {m.group(1)} build, this NRO is the {want} one: it would replace "
+                 f"switchwaker.nro with the other region's, which does not run with the console's disc. "
+                 f"Nothing sent ({'without --eur' if eur else '--eur'} for the {m.group(1)} build, or --force).")
+
+
 def cmd_deploy(args):
-    nro = Path(args.nro or DEFAULT_NRO)
+    eur = args.eur or (DEFAULT_NRO_EUR is not None and args.nro is not None and args.nro.endswith("-eur.nro"))
+    if eur and DEFAULT_NRO_EUR is None:
+        sys.exit("--eur: this port has no European build")
+    nro = Path(args.nro or (DEFAULT_NRO_EUR if eur else DEFAULT_NRO))
     if not nro.exists():
-        sys.exit(f"{nro} does not exist ({BUILD_HINT} builds it)")
+        sys.exit(f"{nro} does not exist ({BUILD_HINT}{' --eur' if eur else ''} builds it)")
+    region_guard(args, eur)
     c = connect(args)
     try:
+        # the European build too goes in as switchwaker.nro (the forwarder's path)
         put_file(c, nro, args.remote)
-        # the bundled caches built next to the NRO (deko3d's DKSH file changes with every build)
-        remote_dir = args.remote.rpartition("/")[0]
+        # the bundled caches built next to the NRO (deko3d's DKSH file changes with every build): in the
+        # server's root, where every NRO reads them (switch/native/CMakeLists.txt, COS_SWITCH_NRO_DIR)
         for extra in ([] if args.nro_only else ["initial_pipeline_cache.db", "initial_dksh_cache.bin"]):
             if (nro.parent / extra).exists():
-                put_file(c, nro.parent / extra, f"{remote_dir}/{extra}" if remote_dir else extra)
+                put_file(c, nro.parent / extra, extra)
         if args.no_reload:
             return
         print(c.command("reload", timeout=10.0).decode())
@@ -335,9 +368,9 @@ def main():
     p.add_argument("--port", type=int, default=int(os.environ.get(ENV_PORT, DEFAULT_PORT)))
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    for name in ("info", "ping", "help", "warps", "quit", "reload", "crash"):
+    for name in ("info", "ping", "help", "warps", "quit", "reload", "crash", "audio"):
         sub.add_parser(name)
-    for name in ("press", "hold", "release", "warp", "stick"):
+    for name in ("press", "hold", "release", "warp", "stick", "event", "give"):
         sp = sub.add_parser(name)
         sp.add_argument("rest", nargs="*")
     sp = sub.add_parser("raw")
@@ -359,6 +392,11 @@ def main():
     sp = sub.add_parser("deploy")
     sp.add_argument("nro", nargs="?")
     sp.add_argument("--remote", default=REMOTE_NRO, help=f"where on the SD card (default {REMOTE_NRO})")
+    sp.add_argument("--eur", action="store_true",
+                    help=f"the European NRO ({DEFAULT_NRO_EUR.relative_to(REPO)}), also as {REMOTE_NRO}; "
+                         "also when NRO ends in -eur.nro")
+    sp.add_argument("--force", action="store_true",
+                    help="deploy even when the running game is the other region's build")
     sp.add_argument("--no-reload", action="store_true")
     sp.add_argument("--nro-only", action="store_true",
                     help="only the NRO, not the initial_pipeline_cache.db / initial_dksh_cache.bin next to it")
@@ -375,11 +413,12 @@ def main():
 
     args = p.parse_args()
     try:
+        args.info = None
         if args.cmd in CHANGING_COMMANDS:
-            check_game(args)
-        if args.cmd in ("info", "ping", "help", "warps", "quit", "reload", "crash"):
+            args.info = check_game(args)
+        if args.cmd in ("info", "ping", "help", "warps", "quit", "reload", "crash", "audio"):
             simple(args, args.cmd)
-        elif args.cmd in ("press", "hold", "release", "warp", "stick"):
+        elif args.cmd in ("press", "hold", "release", "warp", "stick", "event", "give"):
             simple(args, args.cmd, *args.rest, timeout=120.0)
         elif args.cmd == "raw":
             simple(args, *args.rest, timeout=120.0)

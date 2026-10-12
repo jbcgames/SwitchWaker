@@ -1609,6 +1609,8 @@ void pc_frame_end(void) {
         JKRPcHostAllocScope hostAlloc;
         // The options menu (pc_menu.cpp): input, pause and its window, in this frame's ImGui frame.
         menuFrame();
+        // the European build: a log line when the game's language changes (pc_language.cpp)
+        languageFrame();
         if (gConfig.fpsOverlay) {
             const uint64_t frameNs = endFrameStartNs - sFrameStartNs;
             overlayFrame(frameNs > sFrameWaitNs ? frameNs - sFrameWaitNs : 0, true);
@@ -1701,10 +1703,13 @@ void pc_frame_end(void) {
     npcVariantsFrame(frames);
     sailingFrame(frames);
     ropeFrame(frames);
+    qolProbeFrame(frames);
     evcamFrame(frames);
     windScreenFrame(frames);
+    sunGlareFrame(frames);
     kyProcsFrame(frames);
     chestFrame(frames);
+    dmapFrame(frames);
     itemSweepFrame(frames);
     saveSweepFrame(frames);
     eventSweepFrame(frames);
