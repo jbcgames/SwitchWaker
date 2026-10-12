@@ -38,9 +38,17 @@ void pc_wait_for_tick(u32 p1, u16 p2) {
         retraces = waitRetraces;
         periodNs = retraces * PC_RETRACE_PERIOD_NS;
     }
+    pc_set_frame_phase("wait_for_tick_pace");
     pc_frame_pace(periodNs);
+    pc_set_frame_phase("wait_for_tick_retrace");
+    u32 spins = 0;
     while ((s32)(VIGetRetraceCount() - nextCount) < 0) {
         VIWaitForRetrace();
+        if (++spins > 100) {
+            nextCount = VIGetRetraceCount();
+            break;
+        }
     }
     nextCount = VIGetRetraceCount() + retraces;
+    pc_set_frame_phase("wait_for_tick_done");
 }

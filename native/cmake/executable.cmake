@@ -46,8 +46,12 @@ endif ()
 # are in aurora_core and Dawn, which switchwaker and the link census bundle already link through cos_sdk.
 set_property(SOURCE "${COS_NATIVE_ROOT}/src/pc/harness/pc_shot.cpp" "${COS_NATIVE_ROOT}/src/pc/game_hooks/pc_capture.cpp"
         APPEND PROPERTY INCLUDE_DIRECTORIES
-        "${aurora_SOURCE_DIR}"
-        "$<TARGET_PROPERTY:dawn::webgpu_dawn,INTERFACE_INCLUDE_DIRECTORIES>")
+        "${aurora_SOURCE_DIR}")
+if (TARGET dawn::webgpu_dawn)
+    set_property(SOURCE "${COS_NATIVE_ROOT}/src/pc/harness/pc_shot.cpp" "${COS_NATIVE_ROOT}/src/pc/game_hooks/pc_capture.cpp"
+            APPEND PROPERTY INCLUDE_DIRECTORIES
+            "$<TARGET_PROPERTY:dawn::webgpu_dawn,INTERFACE_INCLUDE_DIRECTORIES>")
+endif ()
 # pc_capture.cpp (bug B36, the picto box's photo) also finds the copy texture in Aurora's GX state
 # (lib/gx/gx.hpp: abseil's flat_hash_map, fmt through lib/logging.hpp, xxHash through
 # lib/gfx/hash.hpp). Headers only.

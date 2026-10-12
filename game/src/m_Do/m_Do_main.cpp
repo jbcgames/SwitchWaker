@@ -493,12 +493,15 @@ void main01() {
 
 #if TARGET_PC
         // Step 6.7 (pc_frame.cpp): the phase split of COS_PERF / COS_PERF_EVERY.
+        pc_set_frame_phase("cpd_read");
         pc_perf_begin(PC_PERF_CPD_READ);
         mDoCPd_Read();     // read controller input
         pc_perf_end(PC_PERF_CPD_READ);
+        pc_set_frame_phase("aud_execute");
         pc_perf_begin(PC_PERF_AUD_EXECUTE);
         mDoAud_Execute();  // handle audio execution
         pc_perf_end(PC_PERF_AUD_EXECUTE);
+        pc_set_frame_phase("game_execute");
         pc_perf_begin(PC_PERF_GAME);
         fapGm_Execute();   // handle game execution
         pc_perf_end(PC_PERF_GAME);
@@ -537,6 +540,7 @@ void main01() {
 #endif
 #if TARGET_PC
         // aurora_end_frame, the game frame count (stall watchdog, COS_FRAMES) and milestone M4.
+        pc_set_frame_phase("frame_end");
         pc_frame_end();
 #endif
     } while (true);

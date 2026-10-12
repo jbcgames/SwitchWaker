@@ -74,6 +74,8 @@ void printMilestones(int fd);
 
 // pc_crash.cpp
 void installCrashHandler();
+pthread_t pc_main_thread();
+const char* pc_get_frame_phase();
 // Writes "scene=... frame=... retrace=... ms=... last_res=..." (one line, no prefix) to fd.
 void writeState(int fd);
 // The scene process the game created last (fpcNm_* procName, -1 before the first) and its name;

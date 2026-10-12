@@ -1620,7 +1620,9 @@ void pc_frame_end(void) {
         // Aurora's frame work allocates host memory, not the game's current heap (JKRHeap.cpp).
         JKRPcHostAllocScope hostAlloc;
         const uint64_t endCallStart = sPerfOn ? monotonicNs() : 0;
+        pc_set_frame_phase("aurora_end_frame");
         aurora_end_frame();
+        pc_set_frame_phase("after_aurora_end_frame");
         if (sPerfOn) {
             sEndCallNs += monotonicNs() - endCallStart;
         }

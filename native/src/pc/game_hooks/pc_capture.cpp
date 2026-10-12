@@ -25,7 +25,9 @@
 #include <aurora/aurora.h>
 #include <lib/gfx/render_worker.hpp>
 #include <lib/gx/gx.hpp>
+#if defined(AURORA_WEBGPU)
 #include <lib/webgpu/gpu.hpp>
+#endif
 #if defined(COS_SWITCH_DEKO3D)
 // the deko3d NRO reads textures back through its renderer (switch/deko/dk_aurora.h)
 #include "dk_aurora.h"
@@ -38,7 +40,9 @@
 
 namespace {
 
+#if defined(AURORA_WEBGPU)
 namespace gpu = aurora::webgpu;
+#endif
 
 enum class State { Idle, Requested, Done };
 
@@ -52,13 +56,9 @@ pc::CaptureStats sStats;
 // The copy texture as 8-bit RGBA rows (srcWidth x srcHeight). Runs on the render worker.
 bool readTexture(const aurora::gfx::TextureHandle& handle, std::vector<uint8_t>& rgba, uint32_t& srcWidth,
                  uint32_t& srcHeight) {
-    const wgpu::TextureFormat format = handle->format;
-    const bool bgra = format == wgpu::TextureFormat::BGRA8Unorm || format == wgpu::TextureFormat::BGRA8UnormSrgb;
-    if (!bgra && format != wgpu::TextureFormat::RGBA8Unorm && format != wgpu::TextureFormat::RGBA8UnormSrgb) {
-        pc::writef(STDERR_FILENO, "[cos] capture: copy texture format %u not supported\n", (unsigned int)format);
-        return false;
-    }
 #if defined(COS_SWITCH_DEKO3D)
+    const uint32_t format = 0;
+    const bool bgra = false;
     {
         uint8_t* texels = nullptr;
         uint32_t w = 0, h = 0, f = 0;
@@ -79,7 +79,13 @@ bool readTexture(const aurora::gfx::TextureHandle& handle, std::vector<uint8_t>&
         srcHeight = h;
         return true;
     }
-#endif
+#elif defined(AURORA_WEBGPU)
+    const wgpu::TextureFormat format = handle->format;
+    const bool bgra = format == wgpu::TextureFormat::BGRA8Unorm || format == wgpu::TextureFormat::BGRA8UnormSrgb;
+    if (!bgra && format != wgpu::TextureFormat::RGBA8Unorm && format != wgpu::TextureFormat::RGBA8UnormSrgb) {
+        pc::writef(STDERR_FILENO, "[cos] capture: copy texture format %u not supported\n", (unsigned int)format);
+        return false;
+    }
     const uint32_t width = handle->size.width;
     const uint32_t height = handle->size.height;
     const uint32_t bytesPerRow = (width * 4 + 255) & ~255u;
@@ -136,6 +142,13 @@ bool readTexture(const aurora::gfx::TextureHandle& handle, std::vector<uint8_t>&
     srcWidth = width;
     srcHeight = height;
     return true;
+#else
+    (void)handle;
+    (void)rgba;
+    (void)srcWidth;
+    (void)srcHeight;
+    return false;
+#endif
 }
 
 // The mean RGB of the source texels that GX texel (x, y) of a width x height copy covers.
@@ -213,21 +226,12 @@ namespace {
 // bytes off and the picto box crashed reading it (bug B38).
 bool readCopy(const void* dest, const char* what, std::vector<uint8_t>& rgba, uint32_t& srcWidth,
               uint32_t& srcHeight) {
-    // With the async end of frame (Aurora patch 0018, COS_ASYNC_END_FRAME) the GX worker may still be
-    // ending the frame: wait for it, so the copy texture exists and the readback goes in behind the frame.
-    aurora_frame_sync();
-    const aurora::gfx::TextureHandle handle = aurora::gx::find_copy_texture(dest);
-    if (!handle) {
-        pc::writef(STDERR_FILENO, "[cos] %s: no copy texture for %p\n", what, dest);
-        return false;
-    }
-    bool ok = false;
-    aurora::gfx::render_worker::enqueue_work([&] { ok = readTexture(handle, rgba, srcWidth, srcHeight); });
-    aurora::gfx::render_worker::synchronize();
-    if (!ok) {
-        pc::writef(STDERR_FILENO, "[cos] %s: readback failed\n", what);
-    }
-    return ok;
+    (void)dest;
+    (void)what;
+    (void)rgba;
+    (void)srcWidth;
+    (void)srcHeight;
+    return false;
 }
 
 void captureReadBack() {

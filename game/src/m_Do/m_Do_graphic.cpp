@@ -9,6 +9,7 @@
 #include "pc/pc_gpu_opts.h"
 #include "pc/pc_dynres.h"
 #include "pc/game_hooks.h"
+#include "pc/pc_harness.h"
 // COS_GPU_GROUPS (pc_gpu_opts.h): a GX debug marker before each bucket the GPU timer groups by.
 #define PC_GPU_GROUP(name) pc_gpu_group(name)
 #else
@@ -1602,11 +1603,20 @@ void setLight() {
 
 /* 8000AF2C-8000BC38       .text mDoGph_Painter__Fv */
 bool mDoGph_Painter() {
+#if TARGET_PC
+    pc_set_frame_phase("painter_begin");
+#endif
 #if VERSION > VERSION_DEMO
     JFWDisplay::getManager()->setFader(mDoGph_gInf_c::mFader);
 #endif
     mDoGph_gInf_c::setClearColor(mDoGph_gInf_c::getBackColor());
+#if TARGET_PC
+    pc_set_frame_phase("painter_begin_render");
+#endif
     mDoGph_gInf_c::beginRender();
+#if TARGET_PC
+    pc_set_frame_phase("painter_after_begin_render");
+#endif
 
     GXSetAlphaUpdate(GX_FALSE);
 #if VERSION > VERSION_DEMO
@@ -1617,7 +1627,13 @@ bool mDoGph_Painter() {
     if (mCaptureEnableGXSetCopyFilter)
         GXSetCopyFilter(GX_FALSE, NULL, GX_FALSE, NULL);
 
+#if TARGET_PC
+    pc_set_frame_phase("painter_draw_init");
+#endif
     j3dSys.drawInit();
+#if TARGET_PC
+    pc_set_frame_phase("painter_after_draw_init");
+#endif
 #if VERSION > VERSION_JPN
     GXSetDither(GX_TRUE);
 #endif
@@ -2054,15 +2070,33 @@ bool mDoGph_Painter() {
         j3dSys.setViewMtx(viewMtx);
     }
 
+#if TARGET_PC
+    pc_set_frame_phase("draw2d_opa");
+#endif
     dComIfGd_draw2DOpa();
+#if TARGET_PC
+    pc_set_frame_phase("draw2d_opatop");
+#endif
     dComIfGd_draw2DOpaTop();
+#if TARGET_PC
+    pc_set_frame_phase("draw2d_xlu");
+#endif
     dComIfGd_draw2DXlu();
+#if TARGET_PC
+    pc_set_frame_phase("draw2d_done");
+#endif
 
     if (!dMenu_flag())
         dComIfGp_particle_draw2Dfore(&jpaDrawInfo2D);
     dComIfGp_particle_draw2DmenuFore(&jpaDrawInfo2D);
 
+#if TARGET_PC
+    pc_set_frame_phase("painter_end_render");
+#endif
     mDoGph_gInf_c::endRender();
+#if TARGET_PC
+    pc_set_frame_phase("painter_done");
+#endif
 
     return true;
 }

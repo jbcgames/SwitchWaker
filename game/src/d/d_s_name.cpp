@@ -598,6 +598,9 @@ void (dScnName_c::*DrawProc[])() = {
 
 /* 802305E0-80230678       .text execute__10dScnName_cFv */
 BOOL dScnName_c::execute() {
+#if TARGET_PC
+    pc_set_frame_phase("name_execute");
+#endif
     if (!fopOvlpM_IsPeek()) {
         dComIfG_resetToOpening(this);
     }
@@ -613,8 +616,19 @@ BOOL dScnName_c::execute() {
     if (dFe_c != NULL) {
         dFe_c->_move();
     }
+#if TARGET_PC
+    pc_set_frame_phase("name_main_proc");
+#endif
     (this->*(MainProc[mMainProc]))();
-    buttonIconProc();
+#if TARGET_PC
+    pc_set_frame_phase("name_button_icon");
+#endif
+    if (mDrawProc != 4) {
+        buttonIconProc();
+    }
+#if TARGET_PC
+    pc_set_frame_phase("name_execute_done");
+#endif
     return TRUE;
 }
 
@@ -634,19 +648,31 @@ void dScnName_c::setView() {
 
 /* 80230714-802307EC       .text draw__10dScnName_cFv */
 BOOL dScnName_c::draw() {
+#if TARGET_PC
+    pc_set_frame_phase("name_draw");
+#endif
     setView();
     for (create_tag_class* pTag = fopDwIt_Begin(); pTag != NULL; pTag = fopDwIt_Next(pTag)) {
         void* process = pTag->mpTagData;
         fpcM_Draw(process);
     }
-    if (field_0x55d && !g_snHIO.field_0xb) {
-        dComIfGd_set2DOpa(&cloth);
+    if (mDrawProc != 4) {
+        if (field_0x55d && !g_snHIO.field_0xb) {
+            dComIfGd_set2DOpa(&cloth);
+        }
+#if TARGET_PC
+        pc_set_frame_phase("name_draw_proc");
+#endif
+        (this->*(DrawProc[mDrawProc]))();
+#if TARGET_PC
+        pc_set_frame_phase("name_draw_btn_icon");
+#endif
+        dComIfGd_set2DOpa(&btnIcon);
     }
-    (this->*(DrawProc[mDrawProc]))();
-    dComIfGd_set2DOpa(&btnIcon);
 #if TARGET_PC
     // Milestone M10 file-select (pc_file_select.cpp): the name scene drew this frame.
     pc_name_scene_drawn(mMainProc, mMemCardCheckProc, mDrawProc);
+    pc_set_frame_phase("name_draw_done");
 #endif
     return TRUE;
 }
@@ -765,8 +791,20 @@ void dScnName_c::MemCardStatCheck() {
         mMemCardCheckProc = 1;
         break;
     case mDoMemCd_Ctrl_c::CARD_STAT_RESTORE:
+#if TARGET_PC
+        dComIfGs_setInitDataToCard(saveMemory, 0);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
+        dComIfGs_setInitDataToCard(saveMemory, 1);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
+        dComIfGs_setInitDataToCard(saveMemory, 2);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
+        mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
+        mMemCardCheckProc = 10;
+        field_0x1bb8 = 1;
+#else
         dFe_c->setErrMessage(0x15, 0);
         mMemCardCheckProc = 9;
+#endif
         break;
     }
 }
@@ -833,6 +871,17 @@ void dScnName_c::MemCardGotoIPL() {
 
 /* 80230E7C-80230F4C       .text MemCardErrMsgWaitNoSaveSel__10dScnName_cFv */
 void dScnName_c::MemCardErrMsgWaitNoSaveSel() {
+#if TARGET_PC
+    dComIfGs_setInitDataToCard(saveMemory, 0);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
+    dComIfGs_setInitDataToCard(saveMemory, 1);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
+    dComIfGs_setInitDataToCard(saveMemory, 2);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
+    dComIfGs_setNoFile(1);
+    mMainProc = 1;
+    mDrawProc = 4;
+#else
     if (dFe_c->getStatus() == 2) {
         if (dFe_c->getYesNo() != 0) {
             dComIfGs_setInitDataToCard(saveMemory, 0);
@@ -848,6 +897,7 @@ void dScnName_c::MemCardErrMsgWaitNoSaveSel() {
             mMemCardCheckProc = 0;
         }
     }
+#endif
 }
 
 /* 80230F4C-80230FD0       .text MemCardErrMsgWaitFormatSel__10dScnName_cFv */
@@ -913,6 +963,17 @@ void dScnName_c::MemCardFormatCheck() {
 
 /* 8023117C-80231284       .text MemCardMakeGameFileSel__10dScnName_cFv */
 void dScnName_c::MemCardMakeGameFileSel() {
+#if TARGET_PC
+    dComIfGs_setInitDataToCard(saveMemory, 0);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
+    dComIfGs_setInitDataToCard(saveMemory, 1);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
+    dComIfGs_setInitDataToCard(saveMemory, 2);
+    mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
+    mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
+    mMemCardCheckProc = 0xA;
+    field_0x1bb8 = 1;
+#else
     if (dFe_c->getStatus() == 2) {
         if (dFe_c->getYesNo() != 0) {
             dComIfGs_setInitDataToCard(saveMemory, 0);
@@ -932,6 +993,7 @@ void dScnName_c::MemCardMakeGameFileSel() {
             mMemCardCheckProc = 2;
         }
     }
+#endif
 }
 
 /* 80231284-802312D8       .text MemCardMakeGameFile__10dScnName_cFv */
@@ -1039,6 +1101,77 @@ void dScnName_c::NoteOpenWait() {
         fopMsgM_setAlpha(&field_0x554[field_0x1c58]);
 
         field_0x1c58 ^= 1;
+#endif
+#if TARGET_PC
+        if (fpcM_GetName(this) == fpcNm_NAME_SCENE_e) {
+            dComIfGs_setDataNum(0);
+            const bool has_valid_save = mDoMemCdRWm_TestCheckSumGameData(saveMemory) && (saveMemory[0x157] != 0);
+            if (has_valid_save) {
+                OSReport("[cos] [BYPASS] Existing save detected in slot 0 (Player: %s), loading...\n", (char*)(&saveMemory[0x157]));
+                dComIfGs_setCardToMemory(saveMemory, 0);
+                if (saveMemory[0x19B] != 0 && !dComIfGs_isEventBit(dSv_event_flag_c::UNK_3510)) {
+                    field_0x1bb9 = 1;
+                }
+
+                u8 pictureNum = dComIfGs_getPictureNum();
+                if (pictureNum != 0) {
+                    int i;
+                    u8 failed = 0;
+                    u8 r25 = 0;
+                    u8 boxDataIdx = 0;
+                    card_pictdata* workBuf = &savePicDatabuf[0 * 3];
+                    for (i = 0; i < 3; i++) {
+                        if ((dComIfGs_getEventReg(dSv_event_flag_c::UNK_89FF) & (1 << i))) {
+                            workBuf++;
+                            continue;
+                        }
+
+                        if (mDoMemCdRWm_TestCheckSumPictData(workBuf)) {
+                            JKRMainRamToAram((u8*)workBuf, dComIfGp_getPictureBoxData(boxDataIdx), sizeof(card_pictdata), EXPAND_SWITCH_UNKNOWN0, 0, NULL, -1);
+                            boxDataIdx++;
+                        } else {
+                            failed++;
+                        }
+
+                        r25++;
+                        if (r25 == pictureNum)
+                            break;
+
+                        workBuf++;
+                    }
+
+                    dComIfGs_setPictureNum(pictureNum - failed);
+                }
+                dComIfGs_setEventReg(dSv_event_flag_c::UNK_89FF, 0);
+                mDoMemCd_setPictDataPtr(NULL);
+                dComIfGp_itemDataInit();
+
+                field_0x55f = 0; // 0 = PLAY_SCENE
+                mMainProc = 9;   // changeGameScene
+                mDrawProc = 4;   // NoneDraw
+                return;
+            } else {
+                OSReport("[cos] [BYPASS] No valid save in slot 0, creating new game with name 'Link'...\n");
+                dComIfGs_init();
+                dComIfGp_itemDataInit();
+                char defaultName[] = "Link";
+                dComIfGs_setPlayerName(defaultName);
+
+                dComIfGs_setInitDataToCard(saveMemory, 0);
+                dComIfGs_setMemoryToCard(saveMemory, 0);
+                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
+                dComIfGs_setInitDataToCard(saveMemory, 1);
+                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
+                dComIfGs_setInitDataToCard(saveMemory, 2);
+                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
+                mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
+
+                field_0x55f = 1; // 1 = OPEN_SCENE
+                mMainProc = 9;   // changeGameScene
+                mDrawProc = 4;   // NoneDraw
+                return;
+            }
+        }
 #endif
         mMainProc = 3;
         mOpenProc = 0;
@@ -1554,7 +1687,13 @@ static cPhs_State dScnName_Create(scene_class* i_scn) {
 void dDlst_BTICN_c::draw() {
     J2DOrthoGraph* graf = dComIfGp_getCurrentGrafPort();
     graf->setPort();
+#if TARGET_PC
+    pc_set_frame_phase("bticn_scr_draw");
+#endif
     scr->draw(0.0f, 0.0f, graf);
+#if TARGET_PC
+    pc_set_frame_phase("bticn_scr_draw_done");
+#endif
 }
 
 /* 8023245C-80232518       .text draw__19dDlst_FLSEL_CLOTH_cFv */

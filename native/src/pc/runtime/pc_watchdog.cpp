@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 
 namespace pc {
@@ -82,6 +83,14 @@ void* watchdogMain(void*) {
             } else {
                 dumpAllThreads(STDERR_FILENO);
             }
+#if defined(__linux__) && !defined(__SWITCH__)
+            pthread_t mt = pc_main_thread();
+            if (mt != 0) {
+                writef(STDERR_FILENO, "[cos] interrupting main thread for stall backtrace...\n");
+                pthread_kill(mt, SIGABRT);
+                sleep(2);
+            }
+#endif
             pc_exit(PC_EXIT_STALL);
         }
     }

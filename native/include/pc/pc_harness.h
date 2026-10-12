@@ -172,6 +172,7 @@ void pc_pad_read_done(void);
    milestone M4 frame-loop: 120 frames, the retrace count went up, Aurora counted draw calls). */
 void pc_frame_begin(void);
 void pc_frame_end(void);
+void pc_set_frame_phase(const char* phase);
 
 /* The wait of JFWDisplay's waitForTick (step 6.2): returns once periodNs have passed since the
    previous call returned (Dusklight's limiter); returns at once with COS_UNCAPPED. */

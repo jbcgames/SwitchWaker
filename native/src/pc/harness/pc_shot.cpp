@@ -29,7 +29,9 @@
 
 #include <aurora/aurora.h>
 #include <lib/gfx/render_worker.hpp>
+#if defined(AURORA_WEBGPU)
 #include <lib/webgpu/gpu.hpp>
+#endif
 #if defined(COS_SWITCH_DEKO3D)
 // the deko3d NRO reads textures back through its renderer (switch/deko/dk_aurora.h): Dawn's device
 // there is the Null one
@@ -56,7 +58,9 @@ namespace pc {
 
 namespace {
 
+#if defined(AURORA_WEBGPU)
 namespace gpu = aurora::webgpu;
+#endif
 
 std::vector<unsigned int> sShotFrames; // sorted, COS_SHOT
 unsigned int sShotEvery = 0;           // COS_SHOT_EVERY, 0 = off
@@ -153,6 +157,7 @@ std::string encodePng(const std::vector<uint8_t>& rgb, uint32_t width, uint32_t 
 
 // --- readback (render worker) ------------------------------------------------------------------
 
+#if defined(AURORA_WEBGPU)
 // One texel of the present source as 8-bit RGB; false for a format this does not convert.
 bool texelToRgb(wgpu::TextureFormat format, const uint8_t* p, uint8_t* rgb) {
     switch (format) {
@@ -180,6 +185,7 @@ bool texelToRgb(wgpu::TextureFormat format, const uint8_t* p, uint8_t* rgb) {
         return false;
     }
 }
+#endif
 
 bool writePng(const char* path, unsigned int frame, const std::vector<uint8_t>& rgb, uint32_t width, uint32_t height);
 
@@ -222,6 +228,36 @@ bool writePng(const char* path, unsigned int frame, const std::vector<uint8_t>& 
 // Runs on the render worker, after the frame's submit and present: the present source as 8-bit
 // RGB rows into rgb. False (logged) if it cannot be read.
 bool readPixels(unsigned int frame, std::vector<uint8_t>& rgb, uint32_t& outWidth, uint32_t& outHeight) {
+#if defined(COS_SWITCH_DEKO3D)
+    const gpu::TextureWithSampler& source = gpu::present_source();
+    const uint32_t width = source.size.width;
+    const uint32_t height = source.size.height;
+    if (!source.texture || width == 0 || height == 0) {
+        writef(STDERR_FILENO, "[cos] shot: frame %u: no present source\n", frame);
+        return false;
+    }
+    {
+        uint8_t* texels = nullptr;
+        uint32_t w = 0, h = 0, format = 0;
+        if (!aurora_switch_dk_read_texture(source.texture.Get(), &texels, &w, &h, &format)) {
+            writef(STDERR_FILENO, "[cos] shot: frame %u: readback did not complete (deko3d)\n", frame);
+            return false;
+        }
+        rgb.assign((size_t)w * h * 3, 0);
+        for (uint32_t y = 0; y < h; y++) {
+            for (uint32_t x = 0; x < w; x++) {
+                const uint8_t* p = texels + ((size_t)y * w + x) * 4;
+                uint8_t* out = rgb.data() + ((size_t)y * w + x) * 3;
+                out[0] = p[0];
+                out[1] = p[1];
+                out[2] = p[2];
+            }
+        }
+        outWidth = w;
+        outHeight = h;
+        return true;
+    }
+#elif defined(AURORA_WEBGPU)
     const gpu::TextureWithSampler& source = gpu::present_source();
     const uint32_t width = source.size.width;
     const uint32_t height = source.size.height;
@@ -236,26 +272,6 @@ bool readPixels(unsigned int frame, std::vector<uint8_t>& rgb, uint32_t& outWidt
                (unsigned int)source.format);
         return false;
     }
-#if defined(COS_SWITCH_DEKO3D)
-    {
-        uint8_t* texels = nullptr;
-        uint32_t w = 0, h = 0, format = 0;
-        if (!aurora_switch_dk_read_texture(source.texture.Get(), &texels, &w, &h, &format)) {
-            writef(STDERR_FILENO, "[cos] shot: frame %u: readback did not complete (deko3d)\n", frame);
-            return false;
-        }
-        rgb.assign((size_t)w * h * 3, 0);
-        for (uint32_t y = 0; y < h; y++) {
-            for (uint32_t x = 0; x < w; x++) {
-                texelToRgb((wgpu::TextureFormat)format, texels + ((size_t)y * w + x) * 4, rgb.data() + ((size_t)y * w + x) * 3);
-            }
-        }
-        outWidth = w;
-        outHeight = h;
-        return true;
-    }
-#endif
-
     const uint32_t bytesPerRow = (width * 4 + 255) & ~255u;
     const uint64_t size = (uint64_t)bytesPerRow * height;
     const wgpu::BufferDescriptor bufferDescriptor{
@@ -322,6 +338,13 @@ bool readPixels(unsigned int frame, std::vector<uint8_t>& rgb, uint32_t& outWidt
     outWidth = width;
     outHeight = height;
     return true;
+#else
+    (void)frame;
+    (void)rgb;
+    (void)outWidth;
+    (void)outHeight;
+    return false;
+#endif
 }
 
 // COS_SHOT_IMGUI=1: the frame's ImGui draw data (the FPS overlay, the options menu), copied on the

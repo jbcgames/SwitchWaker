@@ -148,8 +148,11 @@ unset(_cos_aurora_head)
 target_compile_definitions(aurora_mtx PRIVATE MTX_USE_PS=1)
 
 # The SDK libraries the game links (Dusklight's GAME_LIBS, minus the libraries it adds itself).
-set(COS_AURORA_LIBS
+set(_cos_aurora_libs
         aurora::core aurora::gx aurora::gd aurora::si aurora::vi aurora::pad aurora::mtx
-        aurora::os aurora::dvd aurora::thp aurora::card
-        CACHE INTERNAL "Aurora SDK libraries")
+        aurora::os aurora::dvd aurora::card)
+if (TARGET aurora::thp)
+    list(APPEND _cos_aurora_libs aurora::thp)
+endif ()
+set(COS_AURORA_LIBS ${_cos_aurora_libs} CACHE INTERNAL "Aurora SDK libraries")
 message(STATUS "cos_native: Aurora ${COS_AURORA_COMMIT} from ${aurora_SOURCE_DIR}")

@@ -98,6 +98,8 @@ set(COS_GAME_COMPILE_OPTIONS
         # NULL check is deleted (daWarphr_c::_draw dereferenced a NULL demo camera). Give every
         # automatic variable defined contents so the branches stay as written. GCC 12+ accepts it.
         -ftrivial-auto-var-init=zero
+        $<$<C_COMPILER_ID:Clang>:-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang>
+        $<$<CXX_COMPILER_ID:Clang>:-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang>
         # Diagnostics only (no code change). Same set as Dusklight, plus the MWCC-isms clang
         # rejects by default but can accept with identical meaning.
         -Wno-multichar                       # 'ABCD' constants: identical big-endian encoding

@@ -239,9 +239,9 @@ void PlayOutput(const std::vector<s16>& frames, u32 hz) {
         sStreamHz = hz;
     }
     const int bytes = int(frames.size() * sizeof(s16));
-    // At most 200 ms queued: past that the device plays slower than the clock (or not at all).
-    if (SDL_GetAudioStreamQueued(sStream) + bytes > int(hz / 5 * kFrameBytes)) {
-        COS_SDK_LOG_ONCE("AI: the SDL stream holds 200 ms already; frames are dropped (logged "
+    // At most 500 ms queued: past that the device plays slower than the clock (or not at all).
+    if (SDL_GetAudioStreamQueued(sStream) + bytes > int(hz / 2 * kFrameBytes)) {
+        COS_SDK_LOG_ONCE("AI: the SDL stream holds 500 ms already; frames are dropped (logged "
                          "once)");
         return;
     }
@@ -431,6 +431,12 @@ u32 AIGetDMABytesLeft(void) {
     return sAI.curBlocksLeft > 0 ? (sAI.curBlocksLeft - 1) * kDmaStep : 0;
 }
 
+#ifdef TARGET_PC
+uintptr_t AIGetDMAStartAddr(void) {
+    Guard guard;
+    return sAI.dmaStart;
+}
+#else
 u32 AIGetDMAStartAddr(void) {
     Guard guard;
     if (sAI.dmaStart > UINT32_MAX) {
@@ -439,6 +445,7 @@ u32 AIGetDMAStartAddr(void) {
     }
     return static_cast<u32>(sAI.dmaStart);
 }
+#endif
 
 u32 AIGetDMALength(void) {
     Guard guard;

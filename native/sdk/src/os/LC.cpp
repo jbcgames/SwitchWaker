@@ -103,4 +103,92 @@ void L2SetWriteThrough(BOOL writeThrough) {
     (void)writeThrough;
 }
 
+// ---- Range and locked cache functions (OSCache.h) ---------------------------------------------
+
+void DCInvalidateRange(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void DCFlushRange(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void DCStoreRange(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void DCFlushRangeNoSync(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void DCStoreRangeNoSync(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void DCZeroRange(void* addr, u32 nBytes) {
+    if (addr != nullptr && nBytes > 0) {
+        std::memset(addr, 0, nBytes);
+    }
+}
+
+void DCTouchRange(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void ICInvalidateRange(void* addr, u32 nBytes) {
+    (void)addr;
+    (void)nBytes;
+}
+
+void LCEnable(void) {}
+void LCDisable(void) {}
+
+void LCLoadBlocks(void* destTag, void* srcAddr, u32 numBlocks) {
+    if (destTag != nullptr && srcAddr != nullptr) {
+        std::memcpy(destTag, srcAddr, (size_t)numBlocks * 32);
+    }
+}
+
+void LCStoreBlocks(void* destAddr, void* srcTag, u32 numBlocks) {
+    if (destAddr != nullptr && srcTag != nullptr) {
+        std::memcpy(destAddr, srcTag, (size_t)numBlocks * 32);
+    }
+}
+
+u32 LCLoadData(void* destAddr, void* srcAddr, u32 nBytes) {
+    if (destAddr != nullptr && srcAddr != nullptr) {
+        std::memcpy(destAddr, srcAddr, nBytes);
+    }
+    return nBytes;
+}
+
+u32 LCStoreData(void* destAddr, void* srcAddr, u32 nBytes) {
+    if (destAddr != nullptr && srcAddr != nullptr) {
+        std::memcpy(destAddr, srcAddr, nBytes);
+    }
+    return nBytes;
+}
+
+u32 LCQueueLength(void) {
+    return 0;
+}
+
+void LCQueueWait(u32 len) {
+    (void)len;
+}
+
+void LCFlushQueue(void) {}
+
+void __OSCacheInit(void) {}
+
+void aurora_draw_census_request(const char* pathPrefix) {
+    (void)pathPrefix;
+}
+
 } // extern "C"

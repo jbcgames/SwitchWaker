@@ -43,6 +43,8 @@
 #if defined(__linux__)
 #include <link.h>
 #include <sys/uio.h>
+#include <dirent.h>
+#include <sys/syscall.h>
 #endif
 
 namespace pc {
@@ -56,6 +58,8 @@ std::atomic<int> sScene{-1};
 char sLastRes[256];
 std::atomic<int> sLastResEntry{-1};
 std::atomic<unsigned int> sResSeq{0};
+std::atomic<const char*> sFramePhase{"startup"};
+static pthread_t sMainThread = 0;
 
 const char* sceneName(int procName) {
     // f_pc_name.h: the scene process names (fpcNm_*_SCENE_e) and the room scene.
@@ -214,7 +218,16 @@ void writeFrames(int fd, void** frames, int n, int exact) {
         }
     }
 #else
-    backtrace_symbols_fd(sites, n, fd);
+    for (int i = 0; i < n; i++) {
+        Dl_info info;
+        if (dladdr(sites[i], &info) && info.dli_fname != nullptr) {
+            uintptr_t offset = (uintptr_t)sites[i] - (uintptr_t)info.dli_fbase;
+            writef(fd, "[cos]   #%d %s+0x%llx (%s)\n", i, info.dli_fname,
+                   (unsigned long long)offset, info.dli_sname ? info.dli_sname : "?");
+        } else {
+            writef(fd, "[cos]   #%d 0x%llx\n", i, (unsigned long long)(uintptr_t)sites[i]);
+        }
+    }
 #endif
 }
 
@@ -326,6 +339,15 @@ void crashHandler(int sig, siginfo_t* info, void* context) {
 
 } // namespace
 
+const char* pc_get_frame_phase() {
+    const char* p = sFramePhase.load(std::memory_order_relaxed);
+    return p ? p : "unknown";
+}
+
+pthread_t pc_main_thread() {
+    return sMainThread;
+}
+
 void writef(int fd, const char* fmt, ...) {
     char buf[1024];
     va_list args;
@@ -367,10 +389,11 @@ void writeState(int fd) {
     // A torn copy is acceptable here: it is diagnostics, and the last byte stays NUL.
     memcpy(res, sLastRes, sizeof(res));
     res[sizeof(res) - 1] = '\0';
-    writef(fd, "scene=%s(%d) frame=%u retrace=%u ms=%llu last_res=%s entry=%d res_count=%u\n",
+    writef(fd, "scene=%s(%d) frame=%u retrace=%u ms=%llu last_res=%s entry=%d res_count=%u phase=%s\n",
            sceneName(scene), scene, pc_frame_count(), (unsigned int)VIGetRetraceCount(),
            (unsigned long long)elapsedMs(), res[0] != '\0' ? res : "-",
-           sLastResEntry.load(std::memory_order_relaxed), sResSeq.load(std::memory_order_relaxed));
+           sLastResEntry.load(std::memory_order_relaxed), sResSeq.load(std::memory_order_relaxed),
+           pc_get_frame_phase());
 }
 
 int traceScene() {
@@ -395,6 +418,7 @@ void traceLastResource(char* out, size_t size) {
 }
 
 void installCrashHandler() {
+    sMainThread = pthread_self();
 #if defined(__SWITCH__)
     // libnx's exception handler (switch/native/source/cos_switch.cpp) reports crashes; it adds
     // this state line.
@@ -463,6 +487,54 @@ void dumpAllThreads(int fd) {
     }
     mach_port_deallocate(mach_task_self(), self);
     vm_deallocate(mach_task_self(), (vm_address_t)threads, count * sizeof(thread_act_t));
+#elif defined(__linux__)
+    writeImageBase(fd);
+    DIR* dir = opendir("/proc/self/task");
+    if (dir != nullptr) {
+        pid_t selfTid = (pid_t)syscall(SYS_gettid);
+        struct dirent* ent;
+        while ((ent = readdir(dir)) != nullptr) {
+            if (ent->d_name[0] == '.') continue;
+            pid_t tid = atoi(ent->d_name);
+            if (tid <= 0) continue;
+            char commPath[64];
+            snprintf(commPath, sizeof(commPath), "/proc/self/task/%d/comm", tid);
+            char comm[64] = "";
+            int cfd = open(commPath, O_RDONLY);
+            if (cfd >= 0) {
+                ssize_t cr = read(cfd, comm, sizeof(comm) - 1);
+                if (cr > 0) {
+                    while (cr > 0 && (comm[cr - 1] == '\n' || comm[cr - 1] == ' ')) comm[--cr] = '\0';
+                }
+                close(cfd);
+            }
+            char wchanPath[64];
+            snprintf(wchanPath, sizeof(wchanPath), "/proc/self/task/%d/wchan", tid);
+            char wchan[64] = "";
+            int wfd = open(wchanPath, O_RDONLY);
+            if (wfd >= 0) {
+                ssize_t wr = read(wfd, wchan, sizeof(wchan) - 1);
+                if (wr > 0) {
+                    while (wr > 0 && (wchan[wr - 1] == '\n' || wchan[wr - 1] == ' ')) wchan[--wr] = '\0';
+                }
+                close(wfd);
+            }
+            writef(fd, "[cos] thread %d \"%s\" (wchan: %s)%s\n", tid, comm, wchan, tid == selfTid ? " [watchdog]" : "");
+            char stackPath[64];
+            snprintf(stackPath, sizeof(stackPath), "/proc/self/task/%d/stack", tid);
+            int sfd = open(stackPath, O_RDONLY);
+            if (sfd >= 0) {
+                char sbuf[1024];
+                ssize_t sr = read(sfd, sbuf, sizeof(sbuf) - 1);
+                if (sr > 0) {
+                    sbuf[sr] = '\0';
+                    writef(fd, "%s", sbuf);
+                }
+                close(sfd);
+            }
+        }
+        closedir(dir);
+    }
 #else
     writef(fd, "[cos] thread dump not implemented on this host\n");
 #endif
@@ -473,6 +545,10 @@ void dumpAllThreads(int fd) {
 using namespace pc;
 
 extern "C" {
+
+void pc_set_frame_phase(const char* phase) {
+    sFramePhase.store(phase, std::memory_order_relaxed);
+}
 
 int pc_trace_enabled(const char* channel) {
     const char* list = gConfig.trace;

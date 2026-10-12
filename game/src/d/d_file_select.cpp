@@ -3498,10 +3498,19 @@ void dFile_select_c::_draw() {
 }
 
 /* 8018CA0C-8018CA70       .text draw__15dDlst_FileSel_cFv */
+#if TARGET_PC
+extern "C" void pc_set_frame_phase(const char* phase);
+#endif
 void dDlst_FileSel_c::draw() {
     J2DOrthoGraph* graf = dComIfGp_getCurrentGrafPort();
     graf->setPort();
+#if TARGET_PC
+    pc_set_frame_phase("filesel_scr_draw");
+#endif
     Scr->draw(0.0f, 0.0f, graf);
+#if TARGET_PC
+    pc_set_frame_phase("filesel_scr_draw_done");
+#endif
 }
 
 /* 8018CA70-8018CC90       .text dataSelectEx__14dFile_select_cFv */

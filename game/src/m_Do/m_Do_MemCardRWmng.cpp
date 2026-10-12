@@ -238,15 +238,28 @@ void mDoMemCdRWm_BuildHeader(mDoMemCdRWm_HeaderData* header) {
 #else
     snprintf(header->info, sizeof(header->info), HEADER_COMMENT, cal.month + 1, cal.day_of_month);
 #endif
+#if !TARGET_PC
     mDoDvdThd_mountArchive_c* cmd = mDoDvdThd_mountArchive_c::create("/res/CardIcon/cardicon.arc", 0, NULL);
-    while (!cmd->sync()) ;
-    JKRArchive* arc = cmd->getArchive();
-    ResTIMG* banner = (ResTIMG*)arc->getResource("ipl_banner.bti");
-    ResTIMG* icon = (ResTIMG*)arc->getResource("ipl_icon1.bti");
-    memcpy(header->banner, ((char*)banner) + banner->imageOffset, 0xc00 + banner->numColors * 2);
-    memcpy(header->icon, ((char*)icon) + icon->imageOffset, 0x400 + icon->numColors * 2);
-    JKRUnmountArchive(arc);
-    delete cmd;
+    if (cmd != NULL) {
+        while (!cmd->sync()) ;
+        JKRArchive* arc = cmd->getArchive();
+        if (arc != NULL && arc->isMounted()) {
+            ResTIMG* banner = (ResTIMG*)arc->getResource("ipl_banner.bti");
+            ResTIMG* icon = (ResTIMG*)arc->getResource("ipl_icon1.bti");
+            if (banner != NULL) {
+                memcpy(header->banner, ((char*)banner) + banner->imageOffset, 0xc00 + banner->numColors * 2);
+            }
+            if (icon != NULL) {
+                memcpy(header->icon, ((char*)icon) + icon->imageOffset, 0x400 + icon->numColors * 2);
+            }
+            JKRUnmountArchive(arc);
+        }
+        delete cmd;
+    }
+#else
+    memset(header->banner, 0, sizeof(header->banner));
+    memset(header->icon, 0, sizeof(header->icon));
+#endif
 }
 
 /* 8001A0A8-8001A1EC       .text mDoMemCdRWm_SetCardStat__FP12CARDFileInfo */

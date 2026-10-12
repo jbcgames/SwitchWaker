@@ -57,7 +57,7 @@ namespace pc {
 
 namespace {
 
-constexpr uint32_t kMem1Size = 256u * 1024 * 1024; // decision H5
+constexpr uint32_t kMem1Size = 256u * 1024 * 1024; // decision H5 (256 MB MEM1)
 constexpr uint32_t kMem2Size = 16u * 1024 * 1024;  // ARAM, as on the GameCube
 
 char sUserPath[PATH_MAX];
@@ -229,8 +229,19 @@ void pc_aurora_init(int argc, char* argv[]) {
     config.windowPosX = -1;
     config.windowPosY = -1;
     // 960x720, or as wide as COS_ASPECT at that height (1280x720 at 16:9, 1152x720 at 16:10).
+#if defined(__aarch64__) && !defined(__SWITCH__)
+    config.windowWidth = 640;
+    config.windowHeight = 480;
+#else
     config.windowWidth = (int)(480 * 3 / 2 * pc_aspect_ratio() + 0.5f);
     config.windowHeight = 480 * 3 / 2;
+#endif
+    if (const char* w = getenv("COS_WIDTH"); w && *w) {
+        config.windowWidth = atoi(w);
+    }
+    if (const char* h = getenv("COS_HEIGHT"); h && *h) {
+        config.windowHeight = atoi(h);
+    }
     config.logLevel = LOG_INFO;
     config.allowTextureDumps = false;
     config.mem1Size = kMem1Size;
