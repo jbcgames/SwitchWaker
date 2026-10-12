@@ -3598,6 +3598,13 @@ void fopMsgM_msgDataProc_c::colorAnime(J2DPicture* i_pic) {
 
 /* 800322B4-80034F3C       .text stringSet__21fopMsgM_msgDataProc_cFv */
 void fopMsgM_msgDataProc_c::stringSet() {
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        field_0x299 = 1;
+        field_0x296 = 0;
+        waitTimer = 0;
+    }
+#endif
     s8 r30 = g_msgHIO.field_0x6c;
 
     field_0x60 = field_0x40;
@@ -5448,9 +5455,15 @@ void fopMsgM_msgDataProc_c::stringSet() {
                 strcat(field_0x68, sp54);
 
                 if (autoSendFlag == 0) {
+#if TARGET_PC
+                    if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
                     waitTimer = spaceTimer;
                 }
 
+#if TARGET_PC
+                if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
                 if (field_0x299 == 0 && field_0x29A == 0 && autoSendFlag == 0 && handSendFlag == 0 && selectFlag == Select_OFF) {
                     return;
                 }
@@ -5573,6 +5586,9 @@ void fopMsgM_msgDataProc_c::stringSet() {
                         strcat(field_0x60, sp34);
                         strcat(field_0x68, sp34);
 
+#if TARGET_PC
+                        if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
                         if (field_0x299 == 0 && field_0x29A == 0 && autoSendFlag == 0 && handSendFlag == 0 && selectFlag == Select_OFF) {
                             return;
                         }
@@ -5644,13 +5660,22 @@ void fopMsgM_msgDataProc_c::stringSet() {
             strcat(field_0x68, field_0xD4);
 
             if (autoSendFlag == 0) {
+#if TARGET_PC
+                if (!pc_qol(PC_QOL_INSTANT_TEXT)) {
+#endif
                 if (r28 == 0x8140 || r28 == 0x8141 || r28 == 0x878C) {
                     waitTimer = spaceTimer;
                 }
                 if (r28 == 0x20 && spaceFlag != 0) {
                     waitTimer = spaceTimer;
                 }
+#if TARGET_PC
+                }
+#endif
             }
+#if TARGET_PC
+            if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
             if (field_0x299 == 0 && field_0x29A == 0 && autoSendFlag == 0 && handSendFlag == 0 && selectFlag == Select_OFF) {
                 if (r30 == 0) {
                     return;
@@ -5660,6 +5685,9 @@ void fopMsgM_msgDataProc_c::stringSet() {
         }
     }
 
+#if TARGET_PC
+    if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
     if (field_0x299 == 0 && field_0x29A == 0 && autoSendFlag == 0 && handSendFlag == 0 && selectFlag == Select_OFF) {
         return;
     }

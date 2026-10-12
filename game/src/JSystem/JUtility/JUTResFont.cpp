@@ -181,7 +181,7 @@ void JUTResFont::setGX() {
     GXSetTevOp(GX_TEVSTAGE0, GX_MODULATE);
     GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
 
-    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_S16, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_U16, 0xf);
 
@@ -189,6 +189,9 @@ void JUTResFont::setGX() {
     GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
     GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
     GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+
+    mTexPageIdx = -1;
+    field_0x66 = -1;
 }
 
 /* 802C26B8-802C28F8       .text setGX__10JUTResFontFQ28JUtility6TColorQ28JUtility6TColor */
@@ -214,7 +217,7 @@ void JUTResFont::setGX(JUtility::TColor col1, JUtility::TColor col2) {
         GXSetTevAlphaOp(GX_TEVSTAGE1, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
         GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
 
-        GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_S16, 0);
+        GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
         GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
         GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_U16, 0xf);
 
@@ -222,6 +225,9 @@ void JUTResFont::setGX(JUtility::TColor col1, JUtility::TColor col2) {
         GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
         GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
         GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+
+        mTexPageIdx = -1;
+        field_0x66 = -1;
     }
 }
 
@@ -261,8 +267,6 @@ f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int c
     s32 u2 = ((mWidth + mpGlyphBlocks[field_0x66]->cellWidth) * 0x8000) / mpGlyphBlocks[field_0x66]->textureWidth;
     s32 v2 = ((mHeight + mpGlyphBlocks[field_0x66]->cellHeight) * 0x8000) / mpGlyphBlocks[field_0x66]->textureHeight;
 
-    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
-
     GXBegin(GX_QUADS, GX_VTXFMT0, 4);
 
     // Bottom Left
@@ -286,8 +290,6 @@ f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int c
     GXTexCoord2s16(u1, v2);
 
     GXEnd();
-
-    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_S16, 0);
 
     return retval;
 }
@@ -445,11 +447,10 @@ void JUTResFont::loadImage(int code, GXTexMapID id) {
         );
 
         GXInitTexObjLOD(&mTexObj, GX_LINEAR, GX_LINEAR, 0.0f, 0.0f, 0.0f, 0U, 0U, GX_ANISO_1);
+        GXLoadTexObj(&mTexObj, id);
         mTexPageIdx = pageIdx;
         field_0x66 = i;
     }
-
-    GXLoadTexObj(&mTexObj, id);
 }
 
 /* 802C3248-802C328C       .text convertSjis__10JUTResFontCFiPUs */

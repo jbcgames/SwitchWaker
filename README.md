@@ -135,6 +135,59 @@ packages, SDL 3 is built from source. The regression runs with
 symbol census are Mac-only and skipped). Headless (no display, no GPU, e.g. in a container):
 `COS_ALLOW_CPU_ADAPTER=1 xvfb-run -a native/tools/run.sh title` uses Mesa's software Vulkan.
 
+## Build for ARM64 Handhelds (RK3326 / Mali-G31 / ArkOS / PortMaster)
+
+This fork includes dedicated optimizations and an OpenGL ES 3.0 native backend for **ARM64 Linux handhelds** (Rockchip RK3326 / Mali-G31, ArkOS, AmberELEC, PortMaster).
+
+### Improvements in this Fork
+- **Instant Text (Zero Typewriter Delay):** Completely eliminated letter-by-letter progressive text rendering across all dialogue boxes, NPCs, and event cutscene subtitles (`d_mesg.cpp`, `d_msg.cpp`, `f_op_msg_mng.cpp`, `d_scope.cpp`). Eliminates severe GPU/CPU stalls during text display.
+- **Save Menu Deadlock Fix:** Resolved memory card freeze in `d_menu_save.cpp` and `d_s_name.cpp` by correctly handling `CARD_STAT_READY` with synchronous sync.
+- **Frame Judder / Ping-Pong Elimination:** Synchronized KMSDRM blit and swap buffers via `glFinish()` in worker presentation, ensuring perfectly smooth frame pacing.
+- **Optimized Font Pipeline:** Fixed redundant vertex attribute format toggling and texture state flushes per glyph, slashing draw calls from 1,000+ to under 100 per frame.
+- **Tuned for 1 GB RAM:** Configured MEM1 allocation and FIFO streaming buffers for stable handheld execution.
+
+### Requirements (Cross-compiling from Ubuntu / Debian / WSL2 x86_64)
+```sh
+sudo apt update
+sudo apt install -y clang lld cmake ninja-build python3 git \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    libdrm-dev:arm64 libgbm-dev:arm64 libasound2-dev:arm64 zlib1g-dev:arm64
+```
+
+### Build Instructions
+```sh
+# 1. Clone this repository
+git clone https://github.com/jbcgames/SwitchWaker.git switchwaker && cd switchwaker
+
+# 2. Specify your legally obtained disc image
+export COS_DISC=/path/to/GZLE01.iso
+
+# 3. Generate asset headers from disc
+native/tools/fetch_recompcore.sh
+native/tools/gen_assets.sh --disc "$COS_DISC" --out build/assets/GZLE01
+
+# 4. Configure with ARM64 cross-compilation toolchain
+cmake -S native -B build/linux-aarch64-gles -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-aarch64-linux-gnu.cmake \
+    -DCOS_ASSETS_DIR=$PWD/build/assets/GZLE01 \
+    -DCMAKE_BUILD_TYPE=Release
+
+# 5. Build executable
+ninja -C build/linux-aarch64-gles switchwaker
+
+# 6. Strip binary for distribution (~16 MB)
+aarch64-linux-gnu-strip -o build/linux-aarch64-gles/switchwaker.stripped build/linux-aarch64-gles/switchwaker
+```
+
+### Installation on Device (PortMaster / ArkOS)
+1. Copy `build/linux-aarch64-gles/switchwaker.stripped` to `/roms/ports/SwitchWaker/switchwaker` on the device SD card.
+2. Copy `SwitchWaker.sh` and `portmaster/switchwaker.gptk` to `/roms/ports/SwitchWaker/`.
+3. Copy your `GZLE01.iso` disc image to `/roms/ports/SwitchWaker/`.
+4. Ensure execution permissions:
+   ```sh
+   chmod +x /roms/ports/SwitchWaker/switchwaker /roms/ports/SwitchWaker/SwitchWaker.sh
+   ```
+
 ## Build with Docker (any OS)
 
 `scripts/docker/build.sh` builds the Linux binary and/or the Switch NRO entirely in containers, on

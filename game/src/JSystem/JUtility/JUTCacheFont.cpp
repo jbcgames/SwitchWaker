@@ -63,6 +63,7 @@ void JUTCacheFont::initialize_state() {
     mCacheBuffer = NULL;
     field_0x9c = NULL;
     field_0xa0 = NULL;
+    mLoadedCachePage = NULL;
 }
 
 /* 802C05A8-802C0738       .text getMemorySize__12JUTCacheFontFPC7ResFONTPUsPUlPUsPUlPUsPUlPUl */
@@ -375,6 +376,20 @@ void JUTCacheFont::getGlyphFromAram(TGlyphCacheInfo* param_0, TCachePage* pCache
                  (GXTexFmt)pGylphCacheInfo->mTexFormat, GX_CLAMP, GX_CLAMP, GX_FALSE);
     GXInitTexObjLOD(&pCachePage->mTexObj, GX_LINEAR, GX_LINEAR, 0.0f, 0.0f, 0.0f, GX_FALSE, GX_FALSE,
                     GX_ANISO_1);
+    GXInitTexObjData(&pCachePage->mTexObj, pCachePage + 1);
+    if (pCachePage == mLoadedCachePage) {
+        mLoadedCachePage = NULL;
+    }
+}
+
+void JUTCacheFont::setGX() {
+    mLoadedCachePage = NULL;
+    JUTResFont::setGX();
+}
+
+void JUTCacheFont::setGX(JUtility::TColor col1, JUtility::TColor col2) {
+    mLoadedCachePage = NULL;
+    JUTResFont::setGX(col1, col2);
 }
 
 /* 802C0FE8-802C109C       .text loadImage__12JUTCacheFontFi11_GXTexMapID */
@@ -383,7 +398,10 @@ void JUTCacheFont::loadImage(int param_0, GXTexMapID texMapId) {
     if (cachePage != NULL) {
         mWidth = cachePage->field_0xc * (param_0 % int(cachePage->field_0x16));
         mHeight = cachePage->field_0xe * (param_0 / cachePage->field_0x16);
-        GXLoadTexObj(getTexObj(cachePage), texMapId);
+        if (cachePage != mLoadedCachePage) {
+            GXLoadTexObj(getTexObj(cachePage), texMapId);
+            mLoadedCachePage = cachePage;
+        }
         if (mPagingType == PAGE_TYPE_1) {
             unlink(cachePage);
             prepend(cachePage);
@@ -472,6 +490,7 @@ void JUTCacheFont::invalidiateAllCache() {
     field_0xa4 = (TGlyphCacheInfo*)mCacheBuffer;
     field_0x9c = NULL;
     field_0xa0 = NULL;
+    mLoadedCachePage = NULL;
 }
 
 /* 802C126C-802C12B0       .text unlink__12JUTCacheFontFPQ212JUTCacheFont15TGlyphCacheInfo */

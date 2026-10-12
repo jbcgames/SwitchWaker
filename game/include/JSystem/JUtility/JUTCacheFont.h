@@ -49,6 +49,8 @@ public:
     void prepend(TGlyphCacheInfo*);
 
     virtual ~JUTCacheFont();
+    virtual void setGX();
+    virtual void setGX(JUtility::TColor, JUtility::TColor);
     virtual void loadImage(int, GXTexMapID);
     virtual void setBlock();
 
@@ -77,6 +79,7 @@ private:
     /* 0xAC */ JKRAramBlock* field_0xac;
     /* 0xB0 */ u8 field_0xb0;
     /* 0xB4 */ int field_0xb4;
+    TCachePage* mLoadedCachePage = nullptr;
 };  // Size: 0xB8
 
 #endif /* JUTCACHEFONT_H */

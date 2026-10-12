@@ -16,6 +16,7 @@ void GXInitTexObjCI(GXTexObj* obj, void* image, u16 width, u16 height, GXCITexFm
 void GXInitTexObjLOD(GXTexObj* obj, GXTexFilter min_filter, GXTexFilter max_filter, f32 min_lod,
                      f32 max_lod, f32 lod_bias, GXBool bias_clamp, GXBool edge_lod,
                      GXAnisotropy aniso);
+void GXInitTexObjData(GXTexObj* obj, const void* image);
 void* GXGetTexObjData(GXTexObj* obj);
 u16 GXGetTexObjWidth(const GXTexObj* obj);
 u16 GXGetTexObjHeight(const GXTexObj* obj);

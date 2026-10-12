@@ -2385,6 +2385,14 @@ s32 dMsg_stopProc(sub_msg_class* i_Msg) {
     } else {
         if (dMsg_CHECK_TRIG_AB_QOL() && (!dComIfGp_checkMesgBgm())) {
             i_Msg->mStatus = fopMsgStts_MSG_TYPING_e;
+#if TARGET_PC
+            if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+                i_Msg->mMesgEntry.mDrawType = 1;
+                i_Msg->mMsgDataProc.field_0x299 = 1;
+                i_Msg->mMsgDataProc.field_0x296 = 0;
+                i_Msg->mMsgDataProc.set_waitTimerZero();
+            }
+#endif
             dMsg_value_init(i_Msg);
             dMsg_yose_select(i_Msg);
             dMsg_setString(i_Msg);
@@ -2904,6 +2912,14 @@ s32 dMsg_continueProc(sub_msg_class* i_Msg) {
             }
         }
         i_Msg->mStatus = fopMsgStts_MSG_TYPING_e;
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            i_Msg->mMesgEntry.mDrawType = 1;
+            i_Msg->mMsgDataProc.field_0x299 = 1;
+            i_Msg->mMsgDataProc.field_0x296 = 0;
+            i_Msg->mMsgDataProc.set_waitTimerZero();
+        }
+#endif
     } else {
         if ((i_Msg->mMesgEntry.mTextboxType != 5) && (i_Msg->mMesgEntry.mTextboxType != 0xe)) {
             dMsg_arrowMove(i_Msg);
@@ -3003,6 +3019,14 @@ s32 dMsg_finishProc(sub_msg_class* i_Msg) {
 s32 dMsg_openTalkProc(sub_msg_class* i_Msg) {
     if (i_Msg->m1100 == 0xd) {
         i_Msg->mStatus = fopMsgStts_MSG_TYPING_e;
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            i_Msg->mMesgEntry.mDrawType = 1;
+            i_Msg->mMsgDataProc.field_0x299 = 1;
+            i_Msg->mMsgDataProc.field_0x296 = 0;
+            i_Msg->mMsgDataProc.set_waitTimerZero();
+        }
+#endif
         dMsg_messagePaneShow(i_Msg);
         dMsg_yose_select(i_Msg);
         if (i_Msg->mMesgEntry.mInitialSound != 0) {
@@ -3023,6 +3047,14 @@ s32 dMsg_openItemProc(sub_msg_class* i_Msg) {
 
     if (i_Msg->m1100 == 8) {
         i_Msg->mStatus = fopMsgStts_MSG_TYPING_e;
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            i_Msg->mMesgEntry.mDrawType = 1;
+            i_Msg->mMsgDataProc.field_0x299 = 1;
+            i_Msg->mMsgDataProc.field_0x296 = 0;
+            i_Msg->mMsgDataProc.set_waitTimerZero();
+        }
+#endif
         dMsg_messagePaneShow(i_Msg);
         dMsg_yose_select(i_Msg);
         if (i_Msg->mMesgEntry.mInitialSound != 0) {
@@ -3126,6 +3158,14 @@ s32 dMsg_openTactProc(sub_msg_class* i_Msg) {
 /* 80213E28-80213E9C       .text dMsg_openDemoProc__FP13sub_msg_class */
 s32 dMsg_openDemoProc(sub_msg_class* i_Msg) {
     i_Msg->mStatus = fopMsgStts_MSG_TYPING_e;
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        i_Msg->mMesgEntry.mDrawType = 1;
+        i_Msg->mMsgDataProc.field_0x299 = 1;
+        i_Msg->mMsgDataProc.field_0x296 = 0;
+        i_Msg->mMsgDataProc.set_waitTimerZero();
+    }
+#endif
     dMsg_yose_select(i_Msg);
     if (i_Msg->mMesgEntry.mInitialSound != 0) {
         mDoAud_messageSePlay(i_Msg->mMesgEntry.mInitialSound, NULL, dComIfGp_getReverb(dComIfGp_roomControl_getStayNo()));
@@ -3235,6 +3275,14 @@ s32 dMsg_outnowProc(sub_msg_class* i_Msg) {
             i_Msg->mMesgCameraTagInfo = dComIfGp_getMesgCameraTagInfo();
         }
     }
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        i_Msg->mMesgEntry.mDrawType = 1;
+        i_Msg->mMsgDataProc.field_0x299 = 1;
+        i_Msg->mMsgDataProc.field_0x296 = 0;
+        i_Msg->mMsgDataProc.set_waitTimerZero();
+    }
+#endif
     if (i_Msg->mMesgEntry.mDrawType == 0) {
         if (dMsg_CHECK_TRIG_AB() && (!dComIfGp_checkMesgBgm())) {
             i_Msg->mMsgDataProc.field_0x299 = 1;

@@ -6,6 +6,7 @@
 #include "d/dolzel.h" // IWYU pragma: keep
 #if TARGET_PC
 #include "pc/pc_aspect.h"
+#include "pc/pc_qol.h"
 #endif
 #include "d/d_scope.h"
 #include "f_op/f_op_msg.h"
@@ -876,6 +877,13 @@ void dScp_talkBeforeProc(sub_scp_class* i_Scp) {
 
 /* 8023A110-8023A2AC       .text dScp_outnowProc__FP13sub_scp_class */
 BOOL dScp_outnowProc(sub_scp_class* i_Scp) {
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        i_Scp->mMesgEntry.mDrawType = 1;
+        i_Scp->mMesgDataProc.shortCut();
+        i_Scp->mMesgDataProc.set_waitTimerZero();
+    }
+#endif
     if (i_Scp->mMesgEntry.mDrawType == 0) {
         if (CPad_CHECK_TRIG_A(0) || CPad_CHECK_TRIG_B(0)) {
             i_Scp->mMesgDataProc.shortCut();

@@ -28,6 +28,9 @@
 #include "m_Do/m_Do_MemCard.h"
 #include "m_Do/m_Do_MemCardRWmng.h"
 #include "m_Do/m_Do_mtx.h"
+#if TARGET_PC
+#include <unistd.h>
+#endif
 #include "m_Do/m_Do_Reset.h"
 #include "JSystem/JKernel/JKRAram.h"
 #include "JSystem/J2DGraph/J2DOrthoGraph.h"
@@ -1166,6 +1169,12 @@ void dScnName_c::NoteOpenWait() {
                 dComIfGs_setInitDataToCard(saveMemory, 2);
                 mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
                 mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
+                for (int timeout = 0; timeout < 200; timeout++) {
+                    if (mDoMemCd_SaveSync() == 1) {
+                        break;
+                    }
+                    usleep(5000);
+                }
 
                 field_0x55f = 0; // 0 = PLAY_SCENE (bypass prologue scene directly to Outset Island)
                 mMainProc = 9;   // changeGameScene

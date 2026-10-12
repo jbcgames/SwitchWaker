@@ -686,6 +686,9 @@ void dMenu_save_c::memCardCheck() {
         field_0x533 = 0x62;
         field_0x52e = 7;
         break;
+    case mDoMemCd_Ctrl_c::CARD_STAT_READY:
+        mDoMemCd_SaveSync();
+        // fallthrough
     case mDoMemCd_Ctrl_c::CARD_STAT_CREATE:
         mDoMemCd_setPictDataPtr(NULL);
         mDoMemCd_Load();
@@ -695,6 +698,13 @@ void dMenu_save_c::memCardCheck() {
         field_0x532 = 0x34;
         proc = PROC_CLOSE_SAVE_MENU;
         field_0x52d = PROC_MEMCARD_MAKE_GAME_FILE_SEL;
+        break;
+    default:
+        if (mDoMemCd_SaveSync() == 1) {
+            mDoMemCd_setPictDataPtr(NULL);
+            mDoMemCd_Load();
+            proc = PROC_MEMCARD_DATA_LOAD_WAIT;
+        }
         break;
     }
 }

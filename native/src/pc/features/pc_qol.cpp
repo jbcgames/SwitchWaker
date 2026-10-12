@@ -25,6 +25,9 @@ Option sOptions[PC_QOLS] = {
 
 int parse(int which, const char* v) {
     if (v == nullptr) {
+        if (which == PC_QOL_INSTANT_TEXT) {
+            return 1;
+        }
         return 0;
     }
     if (which == PC_QOL_SAIL) {
@@ -52,7 +55,7 @@ int pc_qol(PcQol which) {
         const char* v = getenv(o.key);
         o.value = parse(which, v);
         if (o.value != 0) {
-            pc::writef(STDERR_FILENO, "[cos] qol: %s=%s\n", o.key, v);
+            pc::writef(STDERR_FILENO, "[cos] qol: %s=%s\n", o.key, v ? v : "1 (default)");
         }
     }
     return o.value;

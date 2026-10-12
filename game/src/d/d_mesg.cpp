@@ -276,7 +276,17 @@ void dMesg_tSequenceProcessor::initialize(int param_1) {
     strcat(mMesg->text[0], buffer);
     strcat(mMesg->text[2], buffer);
     field_0x44 = field_0x7c[field_0x70];
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        field_0x8c = 0;
+        mShortCutFlag = 1;
+        mWaitRest = 0;
+    } else {
+        field_0x8c = 1;
+    }
+#else
     field_0x8c = 1;
+#endif
     resetWaitRest();
 }
 
@@ -296,6 +306,15 @@ void dMesg_tSequenceProcessor::do_end() {
 bool dMesg_tSequenceProcessor::do_isReady() {
     bool ret = false;
     if (mStopFlag == 0) {
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            mShortCutFlag = 1;
+            field_0x8c = 0;
+            mWaitRest = 0;
+            field_0x160 = 0;
+            return true;
+        }
+#endif
         JMSMesgEntry_c stack_2c = *(JMSMesgEntry_c*)dMesg_gpControl->getMessageEntry(dMesg_nowMesgCode);
         if (stack_2c.mDrawType == 1) {
             mShortCutFlag = 1;
@@ -518,6 +537,11 @@ void dMesg_tSequenceProcessor::do_character(int param_1) {
     // 0x8140: '　' (Ideographic space)
     // 0x8141: '、' (Ideographic comma)
     // 0x20: ' ' (Space)
+#if TARGET_PC
+    if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+        mWaitRest = 0;
+    } else
+#endif
     if (mesgControl->getCharCode() == 0x8140 || mesgControl->getCharCode() == 0x8141 || mesgControl->getCharCode() == 0x20 || r30 == 1) {
         if (field_0x8c != 0) {
             mWaitRest = VERSION_SELECT(3, 3, 1, 1);
@@ -690,6 +714,9 @@ bool dMesg_tSequenceProcessor::do_tag(u32 param_1, const void* param_2, u32 para
             r29 = true;
             break;
         case 2:
+#if TARGET_PC
+            if (!pc_qol(PC_QOL_INSTANT_TEXT))
+#endif
             field_0x8c = 1;
             r29 = true;
             break;
@@ -699,14 +726,20 @@ bool dMesg_tSequenceProcessor::do_tag(u32 param_1, const void* param_2, u32 para
         case 4:
             r29 = true;
 #if TARGET_PC
-            mWaitRest = *(BE(u16)*)param_2; // tag data is big-endian (step 4.6)
+            if (!pc_qol(PC_QOL_INSTANT_TEXT)) {
+                mWaitRest = *(BE(u16)*)param_2; // tag data is big-endian (step 4.6)
+#if VERSION > VERSION_DEMO
+                field_0x160 = 1;
+#endif
+                mStopFlag = 2;
+            }
 #else
             mWaitRest = *(u16*)param_2;
-#endif
 #if VERSION > VERSION_DEMO
             field_0x160 = 1;
 #endif
             mStopFlag = 2;
+#endif
             break;
         case 5:
         case 6:
@@ -715,12 +748,17 @@ bool dMesg_tSequenceProcessor::do_tag(u32 param_1, const void* param_2, u32 para
         case 7:
             r29 = true;
 #if TARGET_PC
-            mWaitRest = *(BE(u16)*)param_2; // tag data is big-endian (step 4.6)
+            if (!pc_qol(PC_QOL_INSTANT_TEXT)) {
+                mWaitRest = *(BE(u16)*)param_2; // tag data is big-endian (step 4.6)
+#if VERSION > VERSION_DEMO
+                field_0x160 = 1;
+#endif
+            }
 #else
             mWaitRest = *(u16*)param_2;
-#endif
 #if VERSION > VERSION_DEMO
             field_0x160 = 1;
+#endif
 #endif
             break;
         case 8:
@@ -2493,6 +2531,11 @@ void dMesg_openProc(sub_mesg_class* i_Msg) {
             i_Msg->screen->setString(i_Msg->text[i], i);
         }
         i_Msg->field_0x164 = 6;
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            dMesg_gpSequenceProcessor->setShortCutFlag();
+        }
+#endif
         JMSMesgEntry_c stack_3c = *(JMSMesgEntry_c*)dMesg_gpControl->getMessageEntry(dMesg_nowMesgCode);
         if (stack_3c.mInitialSound) {
             mDoAud_messageSePlay(stack_3c.mInitialSound, NULL, dComIfGp_getReverb(dComIfGp_roomControl_getStayNo()));
@@ -2544,6 +2587,11 @@ void dMesg_outwaitProc(sub_mesg_class* i_Msg) {
         }
         i_Msg->screen->arwAnimeInit();
         dMesg_gpSequenceProcessor->initialize(dMesg_gpControl->getLineStart());
+#if TARGET_PC
+        if (pc_qol(PC_QOL_INSTANT_TEXT)) {
+            dMesg_gpSequenceProcessor->setShortCutFlag();
+        }
+#endif
         if (CPad_CHECK_TRIG_B(0)) {
             dMesg_gpSequenceProcessor->setShortCutFlag();
         }
