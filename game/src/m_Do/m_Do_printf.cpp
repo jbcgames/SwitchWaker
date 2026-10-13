@@ -155,6 +155,16 @@ void OSReportInit() {
 
 /* 80006818-80006950       .text OSVReport */
 void OSVReport(const char* fmt, va_list args) {
+#if TARGET_PC
+    static int s_osreport_active = -1;
+    if (s_osreport_active < 0) {
+        const char* env = getenv("COS_REPORT");
+        s_osreport_active = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    if (!s_osreport_active && !__OSReport_enable) {
+        return;
+    }
+#endif
     if (!print_initialized) {
         OSReportInit();
     }
@@ -182,6 +192,16 @@ void OSVReport(const char* fmt, va_list args) {
 
 /* 80006950-800069D0       .text OSReport */
 void OSReport(const char* fmt, ...) {
+#if TARGET_PC
+    static int s_osreport_active = -1;
+    if (s_osreport_active < 0) {
+        const char* env = getenv("COS_REPORT");
+        s_osreport_active = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    if (!s_osreport_active && !__OSReport_enable) {
+        return;
+    }
+#endif
     va_list args;
     va_start(args, fmt);
     OSVReport(fmt, args);

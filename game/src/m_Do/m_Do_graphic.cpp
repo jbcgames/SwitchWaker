@@ -187,14 +187,8 @@ void mDoGph_gInf_c::fadeOut(f32 speed) {
     fadeOut(speed, g_clearColor);
 }
 
-/* 80007FE8-800082D8       .text calcFade__13mDoGph_gInf_cFv */
-void mDoGph_gInf_c::calcFade() {
+void mDoGph_gInf_c::advanceFade() {
     if (mFade) {
-#if TARGET_PC
-        // COS_FPS60_TEST's paint B (game_hooks.h): the fade drawn at paint A's rate, not advanced.
-        if (!pc_paint_is_extra())
-#endif
-        {
         mFadeRate += mFadeSpeed;
         if (mFadeRate < 0.0f) {
             mFadeRate = 0.0f;
@@ -202,8 +196,6 @@ void mDoGph_gInf_c::calcFade() {
         } else if (mFadeRate > 1.0f) {
             mFadeRate = 1.0f;
         }
-        }
-
         mFadeColor.a = mFadeRate * 255.0f;
     } else {
         if (dComIfG_getBrightness() != 0xFF) {
@@ -214,6 +206,17 @@ void mDoGph_gInf_c::calcFade() {
         } else {
             mFadeColor.a = 0;
         }
+    }
+}
+
+/* 80007FE8-800082D8       .text calcFade__13mDoGph_gInf_cFv */
+void mDoGph_gInf_c::calcFade() {
+#if TARGET_PC
+    // In paint B, or when decoupled mode steps advanceFade per sim tick, do not double-advance.
+    if (!pc_paint_is_extra())
+#endif
+    {
+        advanceFade();
     }
 
 #if VERSION > VERSION_JPN

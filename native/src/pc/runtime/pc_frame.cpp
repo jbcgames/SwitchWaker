@@ -1261,6 +1261,70 @@ void pc_perf_end(int phase) {
     sPhase[phase].startNs = 0;
 }
 
+// ---- Decoupled simulation clock ("Full-Speed Clock" / adaptive frameskip) ----
+static int sDecoupleSetting = -1;
+static uint64_t sSimSnapshotNs = 0;
+static bool sSimTickSkipPainter = false;
+constexpr uint64_t kSimPeriodDurationNs = 1000000000ull / 30; // 33,333,333 ns
+constexpr uint64_t kAbnormalGapResetThresholdNs = 250000000ull; // 250 ms
+constexpr int kMaxSimTicksPerFrame = 3;
+
+bool pc_decouple_sim_active(void) {
+    if (sDecoupleSetting < 0) {
+        const char* v = getenv("COS_FULL_SPEED_CLOCK");
+        if (v == nullptr || v[0] == '\0') {
+            v = getenv("COS_DECOUPLE_SIM");
+        }
+        if (v == nullptr || v[0] == '\0') {
+            v = pc_settings_get("COS_FULL_SPEED_CLOCK");
+        }
+        sDecoupleSetting = (v == nullptr || strcmp(v, "1") == 0 || strcmp(v, "true") == 0 || strcmp(v, "on") == 0) ? 1 : 0;
+    }
+    return sDecoupleSetting && !pc_fps60_test();
+}
+
+void pc_decouple_sim_set(int on) {
+    sDecoupleSetting = on ? 1 : 0;
+    sSimSnapshotNs = 0;
+}
+
+int pc_sim_ticks_to_run(void) {
+    const uint64_t now = monotonicNs();
+    if (sSimSnapshotNs == 0) {
+        sSimSnapshotNs = now - kSimPeriodDurationNs;
+        return 1;
+    }
+
+    const uint64_t gap = now > sSimSnapshotNs ? now - sSimSnapshotNs : 0;
+    if (gap > kAbnormalGapResetThresholdNs) {
+        sSimSnapshotNs = now - kSimPeriodDurationNs;
+        return 1;
+    }
+
+    int ticks = 0;
+    while (ticks < kMaxSimTicksPerFrame && sSimSnapshotNs + kSimPeriodDurationNs <= now) {
+        sSimSnapshotNs += kSimPeriodDurationNs;
+        ticks++;
+    }
+
+    if (ticks == 0) {
+        sSimSnapshotNs = now - kSimPeriodDurationNs;
+        ticks = 1;
+    } else if (sSimSnapshotNs + kSimPeriodDurationNs < now) {
+        sSimSnapshotNs = now - kSimPeriodDurationNs * ticks;
+    }
+
+    return ticks;
+}
+
+bool pc_sim_tick_skip_painter(void) {
+    return sSimTickSkipPainter;
+}
+
+void pc_set_sim_tick_skip_painter(bool skip) {
+    sSimTickSkipPainter = skip;
+}
+
 void pc_frame_pace(unsigned long long periodNs) {
     if (sPaceFromAWake) {
         // 60 fps step E: paint A after a split frame waits until two retraces after the last paint
@@ -1284,7 +1348,17 @@ void pc_frame_pace(unsigned long long periodNs) {
             sLimiterStarted = true;
             sLimiter.Reset();
         }
-        sLimiter.Sleep(periodNs);
+        if (pc_decouple_sim_active()) {
+            const uint64_t now = monotonicNs();
+            const uint64_t target = sLimiter.Last() + periodNs;
+            if (now < target) {
+                sLimiter.Sleep(periodNs);
+            } else {
+                sLimiter.Reset();
+            }
+        } else {
+            sLimiter.Sleep(periodNs);
+        }
     }
     sPaceEndNs = monotonicNs();
     sFrameWaitNs += sPaceEndNs - sPaceStartNs;

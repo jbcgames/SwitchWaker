@@ -99,6 +99,9 @@ public:
     void MemCardCheckMain();
     void MemCardStatCheck();
     void MemCardLoadWait();
+#if TARGET_PC
+    void directLoadAndStart();
+#endif
     void MemCardErrMsgWaitKey();
     void MemCardErrMsgWaitKey2();
     void MemCardGotoIPLSelect();

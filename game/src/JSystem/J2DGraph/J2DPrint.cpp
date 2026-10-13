@@ -177,6 +177,10 @@ f32 J2DPrint::parse(const u8* param_1, int param_2, int param_3, u16* param_4, J
         local_d8 = &local_b8;
     }
     mFont->setGradColor(local_b8, *local_d8);
+#if TARGET_PC
+    FontDrawContext context;
+    mFont->pushDrawState();
+#endif
     u8 local_f0;
     bool r25;
     do {
@@ -276,11 +280,21 @@ f32 J2DPrint::parse(const u8* param_1, int param_2, int param_3, u16* param_4, J
                 } else {
                     if (param_7) {
                         if (param_4 != NULL) {
+#if TARGET_PC
+                            mFont->drawChar_scale(field_0x2c + (f32)(s16)param_4[r29], mCursorV,
+                                field_0x18, field_0x1c, r27, true, &context);
+#else
                             mFont->drawChar_scale(field_0x2c + (f32)(s16)param_4[r29], mCursorV,
                                 field_0x18, field_0x1c, r27, true);
+#endif
                         } else {
+#if TARGET_PC
+                            mFont->drawChar_scale(field_0x2c, mCursorV,
+                                field_0x18, field_0x1c, r27, true, &context);
+#else
                             mFont->drawChar_scale(field_0x2c, mCursorV,
                                 field_0x18, field_0x1c, r27, true);
+#endif
                         }
                     }
                     field_0x2c += field_0x34;
@@ -326,6 +340,9 @@ f32 J2DPrint::parse(const u8* param_1, int param_2, int param_3, u16* param_4, J
         field_0x2c = f30;
         mCursorV = f28;
     }
+#if TARGET_PC
+    mFont->popDrawState();
+#endif
     return local_a8;
 }
 

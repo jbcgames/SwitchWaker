@@ -167,6 +167,7 @@ export COS_QOL_INSTANT_TEXT=1
 export AURORA_GX_SWEEP_PERIOD=30
 export AURORA_GX_RETAIN_FRAMES=90
 export COS_MEM1_MB=160
+export COS_FULL_SPEED_CLOCK=1
 
 echo "=== Launching SwitchWaker with disc: $ISO_PATH ==="
 "$BIN" "$ISO_PATH"

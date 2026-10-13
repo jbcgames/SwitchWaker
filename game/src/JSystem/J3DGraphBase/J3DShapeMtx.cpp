@@ -435,11 +435,44 @@ void J3DShapeMtxYBBoardConcatView::load() const {
     }
 }
 
+#if TARGET_PC
+#include "aurora/dl.hpp"
+#include "dolphin/os/OSCache.h"
+#include "JSystem/JKernel/JKRHeap.h"
+#include <cstring>
+
+static void set_display_list_copy(void*& displayList, u32& displayListSize, const u8* data, u32 size) {
+    const u32 alignedSize = ALIGN_NEXT(size, 0x20);
+    u8* newDL = new (0x20) u8[alignedSize];
+    if (size != 0) {
+        std::memcpy(newDL, data, size);
+    }
+    for (u32 i = size; i < alignedSize; i++) {
+        newDL[i] = 0;
+    }
+
+    displayList = newDL;
+    displayListSize = alignedSize;
+    DCStoreRange(newDL, displayListSize);
+}
+#endif
+
 /* 802DCAEC-802DCB04       .text __ct__12J3DShapeDrawFPCUcUl */
 J3DShapeDraw::J3DShapeDraw(const u8* pDL, u32 size) {
     mDisplayList = (void*) pDL;
     mDisplayListSize = size;
 }
+
+#if TARGET_PC
+J3DShapeDraw::J3DShapeDraw(const u8* displayList, u32 displayListSize, const GXVtxDescList* vtxDesc) {
+    if (const auto optimized = aurora::gx::dl::optimize(displayList, displayListSize, vtxDesc)) {
+        set_display_list_copy(mDisplayList, mDisplayListSize, optimized->data(), (u32)optimized->size());
+    } else {
+        mDisplayList = (void*)displayList;
+        mDisplayListSize = displayListSize;
+    }
+}
+#endif
 
 /* 802DCB04-802DCB30       .text draw__12J3DShapeDrawCFv */
 void J3DShapeDraw::draw() const {

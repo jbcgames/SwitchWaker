@@ -29,6 +29,8 @@
 #include <stdio.h>
 #if TARGET_PC
 #include "pc/pc_harness.h"
+#include "pc/game_hooks.h"
+#include "d/d_drawlist.h"
 #endif
 #if TARGET_PC
 // From Dusklight (CC0, ref/dusklight/src/dusk/main.cpp): Aurora's aurora::main library owns the
@@ -492,19 +494,37 @@ void main01() {
         }
 
 #if TARGET_PC
-        // Step 6.7 (pc_frame.cpp): the phase split of COS_PERF / COS_PERF_EVERY.
-        pc_set_frame_phase("cpd_read");
-        pc_perf_begin(PC_PERF_CPD_READ);
-        mDoCPd_Read();     // read controller input
-        pc_perf_end(PC_PERF_CPD_READ);
-        pc_set_frame_phase("aud_execute");
-        pc_perf_begin(PC_PERF_AUD_EXECUTE);
-        mDoAud_Execute();  // handle audio execution
-        pc_perf_end(PC_PERF_AUD_EXECUTE);
-        pc_set_frame_phase("game_execute");
-        pc_perf_begin(PC_PERF_GAME);
-        fapGm_Execute();   // handle game execution
-        pc_perf_end(PC_PERF_GAME);
+        const int ticksToRun = pc_decouple_sim_active() ? pc_sim_ticks_to_run() : 1;
+        for (int sim_tick = 0; sim_tick < ticksToRun; ++sim_tick) {
+            const bool skipPainter = (sim_tick < ticksToRun - 1);
+            pc_set_sim_tick_skip_painter(skipPainter);
+
+            pc_set_frame_phase("cpd_read");
+            pc_perf_begin(PC_PERF_CPD_READ);
+            mDoCPd_Read();     // read controller input
+            pc_perf_end(PC_PERF_CPD_READ);
+
+            pc_set_frame_phase("aud_execute");
+            pc_perf_begin(PC_PERF_AUD_EXECUTE);
+            mDoAud_Execute();  // handle audio execution
+            pc_perf_end(PC_PERF_AUD_EXECUTE);
+
+            pc_set_frame_phase("game_execute");
+            pc_perf_begin(PC_PERF_GAME);
+            fapGm_Execute();   // handle game execution
+            pc_perf_end(PC_PERF_GAME);
+
+            if (skipPainter) {
+                mDoGph_gInf_c::advanceFade();
+                dDlst_list_c::calcWipe();
+                if (JFWDisplay* disp = JFWDisplay::getManager()) {
+                    if (JUTFader* fader = disp->getFader()) {
+                        fader->control();
+                    }
+                }
+            }
+        }
+        pc_set_sim_tick_skip_painter(false);
 #else
         mDoCPd_Read();     // read controller input
         mDoAud_Execute();  // handle audio execution

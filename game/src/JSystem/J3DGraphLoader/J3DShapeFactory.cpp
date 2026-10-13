@@ -151,7 +151,13 @@ J3DShapeMtx* J3DShapeFactory::newShapeMtx(u32 flag, int shapeNo, int mtxGroupNo)
 J3DShapeDraw* J3DShapeFactory::newShapeDraw(int shapeNo, int mtxGroupNo) const {
     const J3DShapeInitData& shapeInitData = mpShapeInitData[mpIndexTable[shapeNo]];
     const J3DShapeDrawInitData& drawInitData = (&mpDrawInitData[shapeInitData.mDrawInitDataIndex])[mtxGroupNo];
+#if TARGET_PC
+    return new J3DShapeDraw(&mpDisplayListData[drawInitData.mDisplayListIndex],
+                            drawInitData.mDisplayListSize,
+                            getVtxDescList(shapeNo));
+#else
     return new J3DShapeDraw(&mpDisplayListData[drawInitData.mDisplayListIndex], drawInitData.mDisplayListSize);
+#endif
 }
 
 /* 802FEACC-802FEB38       .text allocVcdVatCmdBuffer__15J3DShapeFactoryFUl */

@@ -4001,6 +4001,19 @@ void dKyr_drawRain(Mtx drawMtx, u8** pImg) {
     GXInitTexObj(&texObj, pImg[0], 64, 64, GX_TF_I8, GX_CLAMP, GX_CLAMP, GX_FALSE);
     GXInitTexObjLOD(&texObj, GX_LINEAR, GX_LINEAR, 0.0f, 0.0f, 0.0f, GX_FALSE, GX_FALSE, GX_ANISO_1);
     GXLoadTexObj(&texObj, GX_TEXMAP0);
+#if TARGET_PC
+    GXSetNumChans(1);
+    GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, 0, GX_DF_NONE, GX_AF_NONE);
+    GXSetTevColor(GX_TEVREG1, reg1);
+    GXSetNumTexGens(1);
+    GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+    GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_C1, GX_CC_C0, GX_CC_TEXC, GX_CC_ZERO);
+    GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+    GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_RASA, GX_CA_TEXA, GX_CA_ZERO);
+    GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+#else
     GXSetNumChans(0);
     GXSetTevColor(GX_TEVREG0, reg0);
     GXSetTevColor(GX_TEVREG1, reg1);
@@ -4012,6 +4025,7 @@ void dKyr_drawRain(Mtx drawMtx, u8** pImg) {
     GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
     GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_A0, GX_CA_TEXA, GX_CA_ZERO);
     GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+#endif
     GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
     GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_OR, GX_GREATER, 0);
     GXSetZMode(true, GX_LEQUAL, false);
@@ -4024,13 +4038,30 @@ void dKyr_drawRain(Mtx drawMtx, u8** pImg) {
     GXSetNumIndStages(0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_S16, 8);
+#if TARGET_PC
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+#endif
     GXClearVtxDesc();
     GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
     GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+#if TARGET_PC
+    GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+#endif
     MTXRotDeg(rotMtx, 'Z', rot);
     MTXConcat(camMtx, rotMtx, camMtx);
     GXLoadPosMtxImm(drawMtx, GX_PNMTX0);
     GXSetCurrentMtx(GX_PNMTX0);
+
+#if TARGET_PC
+    s32 activeDrops = 0;
+    for (s32 i = 0; i < pPkt->mRainCount; i++) {
+        if (pPkt->mEff[i].mAlpha > 0.0f)
+            activeDrops++;
+    }
+    if (activeDrops > 0) {
+        GXBegin(GX_QUADS, GX_VTXFMT0, activeDrops * 4 * 4);
+    }
+#endif
 
     for (s32 i = 0; i < pPkt->mRainCount; i++) {
 #if VERSION == VERSION_DEMO
@@ -4041,7 +4072,9 @@ void dKyr_drawRain(Mtx drawMtx, u8** pImg) {
             continue;
 
         reg0.a = alpha * 14.0f;
+#if !TARGET_PC
         GXSetTevColor(GX_TEVREG0, reg0);
+#endif
 
         p.x = pPkt->mEff[i].mBasePos.x + pPkt->mEff[i].mPos.x;
         p.y = pPkt->mEff[i].mBasePos.y + pPkt->mEff[i].mPos.y;
@@ -4105,18 +4138,40 @@ void dKyr_drawRain(Mtx drawMtx, u8** pImg) {
                 cXyz(45.0f, 480.0f, 45.0f),
             };
 
+#if !TARGET_PC
             GXBegin(GX_QUADS, GX_VTXFMT0, 4);
+#endif
             GXPosition3f32(pos[0].x + add_table[j].x, pos[0].y + add_table[j].y, pos[0].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
             GXTexCoord2s16(0, 0);
             GXPosition3f32(pos[1].x + add_table[j].x, pos[1].y + add_table[j].y, pos[1].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
             GXTexCoord2s16(0xFF, 0);
             GXPosition3f32(pos[2].x + add_table[j].x, pos[2].y + add_table[j].y, pos[2].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
             GXTexCoord2s16(0xFF, 0xFF);
             GXPosition3f32(pos[3].x + add_table[j].x, pos[3].y + add_table[j].y, pos[3].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
             GXTexCoord2s16(0, 0xFF);
+#if !TARGET_PC
             GXEnd();
+#endif
         }
     }
+
+#if TARGET_PC
+    if (activeDrops > 0) {
+        GXEnd();
+    }
+#endif
 
 #if VERSION > VERSION_JPN
     GXSetClipMode(GX_CLIP_ENABLE);
@@ -4211,6 +4266,13 @@ void dKyr_drawSibuki(Mtx drawMtx, u8** pImg) {
         scale = 0.2f;
     }
 
+#if TARGET_PC
+    s32 sibukiCount = g_env_light.mRainCount >> 1;
+    if (sibukiCount > 0) {
+        GXBegin(GX_QUADS, GX_VTXFMT0, sibukiCount * 4);
+    }
+#endif
+
     for (s32 i = 0; i < g_env_light.mRainCount >> 1; i++) {
         cXyz pos[4], p;
 
@@ -4240,7 +4302,9 @@ void dKyr_drawSibuki(Mtx drawMtx, u8** pImg) {
         pos[3].y = p.y;
         pos[3].z = p.z + size;
 
+#if !TARGET_PC
         GXBegin(GX_QUADS, GX_VTXFMT0, 4);
+#endif
         GXPosition3f32(pos[0].x, pos[0].y, pos[0].z);
         GXTexCoord2s16(0, 0);
         GXPosition3f32(pos[1].x, pos[1].y, pos[1].z);
@@ -4249,8 +4313,16 @@ void dKyr_drawSibuki(Mtx drawMtx, u8** pImg) {
         GXTexCoord2s16(0x1FF, 0x1FF);
         GXPosition3f32(pos[3].x, pos[3].y, pos[3].z);
         GXTexCoord2s16(0, 0x1FF);
+#if !TARGET_PC
+        GXEnd();
+#endif
+    }
+
+#if TARGET_PC
+    if (sibukiCount > 0) {
         GXEnd();
     }
+#endif
 
 #if VERSION > VERSION_JPN
     GXSetClipMode(GX_CLIP_ENABLE);
@@ -4460,6 +4532,19 @@ void dKyr_drawHousi(Mtx drawMtx, u8** pImg) {
 
     for (int i = 0; i < 2; i++) {
         dKyr_set_btitex(&spDC, (ResTIMG*)pImg[0]);
+#if TARGET_PC
+        GXSetNumChans(1);
+        GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, 0, GX_DF_NONE, GX_AF_NONE);
+        GXSetTevColor(GX_TEVREG1, color_reg1);
+        GXSetNumTexGens(1);
+        GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+        GXSetNumTevStages(1);
+        GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+        GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_C1, GX_CC_C0, GX_CC_TEXC, GX_CC_ZERO);
+        GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+        GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_RASA, GX_CA_TEXA, GX_CA_ZERO);
+        GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+#else
         GXSetNumChans(0);
         GXSetTevColor(GX_TEVREG0, color_reg0);
         GXSetTevColor(GX_TEVREG1, color_reg1);
@@ -4471,6 +4556,7 @@ void dKyr_drawHousi(Mtx drawMtx, u8** pImg) {
         GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
         GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_A0, GX_CA_TEXA, GX_CA_ZERO);
         GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+#endif
         GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
         GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_OR, GX_GREATER, 0);
 
@@ -4488,9 +4574,15 @@ void dKyr_drawHousi(Mtx drawMtx, u8** pImg) {
 
         GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
         GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_S16, 8);
+#if TARGET_PC
+        GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+#endif
         GXClearVtxDesc();
         GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
         GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+#if TARGET_PC
+        GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+#endif
 
         MTXRotRad(rotMtx, 'Z', DEG2RAD(rot));
         MTXConcat(camMtx, rotMtx, camMtx);
@@ -4535,8 +4627,10 @@ void dKyr_drawHousi(Mtx drawMtx, u8** pImg) {
                 color_reg0.a = housi_packet->mEffect[j].mAlpha * var_f25;
             }
 
+#if !TARGET_PC
             GXLoadTexObj(&spDC, GX_TEXMAP0);
             GXSetTevColor(GX_TEVREG0, color_reg0);
+#endif
 
             f32 temp_f28 = 0.22f * cM_fsin(housi_packet->mEffect[j].mScale.x * 10.0f);
             f32 temp_f30 = 0.22f * cM_fsin(housi_packet->mEffect[j].mScale.y * 10.0f);
@@ -4576,12 +4670,24 @@ void dKyr_drawHousi(Mtx drawMtx, u8** pImg) {
             GXBegin(GX_QUADS, GX_VTXFMT0, 4);
 
             GXPosition3f32(pos[0].x, pos[0].y, pos[0].z);
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, (u8)color_reg0.a);
+#endif
             GXTexCoord2s16(0, 0);
             GXPosition3f32(pos[1].x, pos[1].y, pos[1].z);
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, (u8)color_reg0.a);
+#endif
             GXTexCoord2s16(0x1FF, 0);
             GXPosition3f32(pos[2].x, pos[2].y, pos[2].z);
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, (u8)color_reg0.a);
+#endif
             GXTexCoord2s16(0x1FF, 0x1FF);
             GXPosition3f32(pos[3].x, pos[3].y, pos[3].z);
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, (u8)color_reg0.a);
+#endif
             GXTexCoord2s16(0, 0x1FF);
             GXEnd();
         }
@@ -4959,6 +5065,13 @@ void dKyr_drawSnow(Mtx drawMtx, u8** pImg) {
     GXLoadPosMtxImm(drawMtx, GX_PNMTX0);
     GXSetCurrentMtx(GX_PNMTX0);
 
+#if TARGET_PC
+    s32 snowQuads = snow_packet->mEffCount * 4;
+    if (snowQuads > 0) {
+        GXBegin(GX_QUADS, GX_VTXFMT0, snowQuads * 4);
+    }
+#endif
+
     for (int i = 0; i < snow_packet->mEffCount; i++) {
         sp7C.x = snow_packet->mEff[i].mBasePos.x + snow_packet->mEff[i].mPos.x;
         sp7C.y = snow_packet->mEff[i].mBasePos.y + snow_packet->mEff[i].mPos.y;
@@ -5011,7 +5124,9 @@ void dKyr_drawSnow(Mtx drawMtx, u8** pImg) {
                 cXyz(45.0f, 45.0f, 45.0f),
             };
 
+#if !TARGET_PC
             GXBegin(GX_QUADS, GX_VTXFMT0, 4);
+#endif
             GXPosition3f32(pos[0].x + add_table[k].x, pos[0].y + add_table[k].y, pos[0].z + add_table[k].z);
             GXTexCoord2s16(0, 0);
             GXPosition3f32(pos[1].x + add_table[k].x, pos[1].y + add_table[k].y, pos[1].z + add_table[k].z);
@@ -5020,9 +5135,17 @@ void dKyr_drawSnow(Mtx drawMtx, u8** pImg) {
             GXTexCoord2s16(0xFF, 0xFF);
             GXPosition3f32(pos[3].x + add_table[k].x, pos[3].y + add_table[k].y, pos[3].z + add_table[k].z);
             GXTexCoord2s16(0, 0xFF);
+#if !TARGET_PC
             GXEnd();
+#endif
         }
     }
+
+#if TARGET_PC
+    if (snowQuads > 0) {
+        GXEnd();
+    }
+#endif
 
 #if VERSION > VERSION_JPN
     GXSetClipMode(GX_CLIP_ENABLE);
@@ -5088,6 +5211,26 @@ void dKyr_drawStar(Mtx drawMtx, u8** pImg) {
 
     mDoLib_project(&envlight->mMoonPos, &moon_proj);
 
+#if TARGET_PC
+    GXSetNumChans(1);
+    GXSetChanCtrl(GX_COLOR0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHT_NULL, GX_DF_CLAMP, GX_AF_NONE);
+    GXSetNumTexGens(0);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, GX_COLOR0A0);
+    GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+    GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_ZERO, GX_CA_ZERO, GX_CA_RASA);
+    GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    GXSetZMode(GX_ENABLE, GX_LEQUAL, GX_DISABLE);
+    GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_CLEAR);
+    GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_OR, GX_GREATER, 0);
+    GXSetNumIndStages(0);
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GXClearVtxDesc();
+    GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
+    GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+#else
     GXSetNumChans(1);
     GXSetChanCtrl(GX_COLOR0, GX_DISABLE, GX_SRC_REG, GX_SRC_REG, GX_LIGHT_NULL, GX_DF_CLAMP, GX_AF_NONE);
     GXSetNumTexGens(0);
@@ -5105,6 +5248,7 @@ void dKyr_drawStar(Mtx drawMtx, u8** pImg) {
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GXClearVtxDesc();
     GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
+#endif
 
     Mtx rotMtx;
     MTXRotRad(rotMtx, 'Z', DEG2RAD(rot));
@@ -5221,7 +5365,9 @@ void dKyr_drawStar(Mtx drawMtx, u8** pImg) {
             color_reg0 = star_col[(i >> 6) & 3];
         else
             color_reg0 = star_col[0];
+#if !TARGET_PC
         GXSetTevColor(GX_TEVREG0, color_reg0);
+#endif
 
         cXyz center;
         cXyz sp5C;
@@ -5238,14 +5384,32 @@ void dKyr_drawStar(Mtx drawMtx, u8** pImg) {
         if (moon_dist_to_star > moon_threshold) {
             GXBegin(GX_QUADS, GX_VTXFMT0, 3);
             GXPosition3f32(center.x + (star_size * (pos[0].x - spBC.x)), center.y + (star_size * (pos[0].y - spBC.y)), center.z + (star_size * (pos[0].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXPosition3f32(center.x + (star_size * (pos[1].x - spBC.x)), center.y + (star_size * (pos[1].y - spBC.y)), center.z + (star_size * (pos[1].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXPosition3f32(center.x + (star_size * (pos[2].x - spBC.x)), center.y + (star_size * (pos[2].y - spBC.y)), center.z + (star_size * (pos[2].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXEnd();
             
             GXBegin(GX_QUADS, GX_VTXFMT0, 3);
             GXPosition3f32(center.x - (star_size * (pos[0].x - spBC.x)), center.y - (star_size * (pos[0].y - spBC.y)), center.z - (star_size * (pos[0].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXPosition3f32(center.x - (star_size * (pos[1].x - spBC.x)), center.y - (star_size * (pos[1].y - spBC.y)), center.z - (star_size * (pos[1].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXPosition3f32(center.x - (star_size * (pos[2].x - spBC.x)), center.y - (star_size * (pos[2].y - spBC.y)), center.z - (star_size * (pos[2].z - spBC.z)));
+#if TARGET_PC
+            GXColor4u8(color_reg0.r, color_reg0.g, color_reg0.b, color_reg0.a);
+#endif
             GXEnd();
         }
     }
@@ -5288,6 +5452,22 @@ void drawWave(Mtx drawMtx, u8** pImg) {
     s32 texidx = strcmp(dComIfGp_getStartStageName(), "MajyuE") == 0 ? 1 : 0;
     dKyr_set_btitex(&texObj, (ResTIMG*)pImg[texidx]);
 
+#if TARGET_PC
+    GXSetNumChans(1);
+    GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, 0, GX_DF_NONE, GX_AF_NONE);
+    GXSetNumTexGens(1);
+    GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    dKy_get_seacolor(&amb, &dif);
+    GXSetTevColor(GX_TEVREG0, dif);
+    GXSetTevKColorSel(GX_TEVSTAGE0, GX_TEV_KCSEL_K0);
+    GXSetTevKColor(GX_KCOLOR0, amb);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+    GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_C0, GX_CC_KONST, GX_CC_TEXC, GX_CC_ZERO);
+    GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+    GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_RASA, GX_CA_TEXA, GX_CA_ZERO);
+    GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+#else
     GXSetNumChans(0);
     GXSetNumTexGens(1);
     GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
@@ -5303,6 +5483,7 @@ void drawWave(Mtx drawMtx, u8** pImg) {
     GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
     GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_KONST, GX_CA_TEXA, GX_CA_ZERO);
     GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, GX_TRUE, GX_TEVPREV);
+#endif
     dKy_GxFog_sea_set();
     GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
     GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_OR, GX_GREATER, 0);
@@ -5312,9 +5493,15 @@ void drawWave(Mtx drawMtx, u8** pImg) {
     GXSetNumIndStages(0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_S16, 8);
+#if TARGET_PC
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+#endif
     GXClearVtxDesc();
     GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
     GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+#if TARGET_PC
+    GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+#endif
     MTXRotDeg(rotMtx, 'Z', rot);
     MTXConcat(camMtx, rotMtx, camMtx);
     GXLoadPosMtxImm(drawMtx, GX_PNMTX0);
@@ -5344,9 +5531,13 @@ void drawWave(Mtx drawMtx, u8** pImg) {
         if (height <= 0.0f)
             continue;
 
+#if !TARGET_PC
         GXLoadTexObj(&texObj, GX_TEXMAP0);
         amb.a = pPkt->mEff[i].mAlpha * 255.0f;
         GXSetTevKColor(GX_KCOLOR3, amb);
+#else
+        amb.a = pPkt->mEff[i].mAlpha * 255.0f;
+#endif
 
         if (pPkt->mSkewDir < 0.0f) {
             vp.x = -width + width * -(pPkt->mEff[i].mSpeed * 1.2f) * pPkt->mSkewWidth;
@@ -5401,12 +5592,24 @@ void drawWave(Mtx drawMtx, u8** pImg) {
             s16 tc = 0xFA;
 
             GXPosition3f32(pos[0].x + add_table[j].x, pos[0].y + add_table[j].y, pos[0].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(amb.r, amb.g, amb.b, (u8)amb.a);
+#endif
             GXTexCoord2s16(0, 0);
             GXPosition3f32(pos[1].x + add_table[j].x, pos[1].y + add_table[j].y, pos[1].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(amb.r, amb.g, amb.b, (u8)amb.a);
+#endif
             GXTexCoord2s16(tc, 0);
             GXPosition3f32(pos[2].x + add_table[j].x, pos[2].y + add_table[j].y, pos[2].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(amb.r, amb.g, amb.b, (u8)amb.a);
+#endif
             GXTexCoord2s16(tc, tc);
             GXPosition3f32(pos[3].x + add_table[j].x, pos[3].y + add_table[j].y, pos[3].z + add_table[j].z);
+#if TARGET_PC
+            GXColor4u8(amb.r, amb.g, amb.b, (u8)amb.a);
+#endif
             GXTexCoord2s16(0, tc);
             GXEnd();
         }
@@ -5467,6 +5670,19 @@ void drawCloudShadow(Mtx drawMtx, u8** pImg) {
 
     dKyr_set_btitex(&texObj, (ResTIMG*)pImg[0]);
 
+#if TARGET_PC
+    GXSetNumChans(1);
+    GXSetChanCtrl(GX_COLOR0A0, GX_FALSE, GX_SRC_REG, GX_SRC_VTX, 0, GX_DF_NONE, GX_AF_NONE);
+    GXSetTevColor(GX_TEVREG1, reg1);
+    GXSetNumTexGens(1);
+    GXSetTexCoordGen(GX_TEXCOORD0, GX_TG_MTX2x4, GX_TG_TEX0, GX_IDENTITY);
+    GXSetNumTevStages(1);
+    GXSetTevOrder(GX_TEVSTAGE0, GX_TEXCOORD0, GX_TEXMAP0, GX_COLOR0A0);
+    GXSetTevColorIn(GX_TEVSTAGE0, GX_CC_C1, GX_CC_C0, GX_CC_TEXC, GX_CC_ZERO);
+    GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+    GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_RASA, GX_CA_TEXA, GX_CA_ZERO);
+    GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+#else
     GXSetNumChans(0);
     GXSetTevColor(GX_TEVREG0, reg0);
     GXSetTevColor(GX_TEVREG1, reg1);
@@ -5478,6 +5694,7 @@ void drawCloudShadow(Mtx drawMtx, u8** pImg) {
     GXSetTevColorOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
     GXSetTevAlphaIn(GX_TEVSTAGE0, GX_CA_ZERO, GX_CA_A0, GX_CA_TEXA, GX_CA_ZERO);
     GXSetTevAlphaOp(GX_TEVSTAGE0, GX_TEV_ADD, GX_TB_ZERO, GX_CS_SCALE_1, true, GX_TEVPREV);
+#endif
     dKy_GxFog_set();
     GXSetBlendMode(GX_BM_BLEND, GX_BL_SRC_ALPHA, GX_BL_INV_SRC_ALPHA, GX_LO_SET);
     GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_OR, GX_GREATER, 0);
@@ -5486,9 +5703,15 @@ void drawCloudShadow(Mtx drawMtx, u8** pImg) {
     GXSetNumIndStages(0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
     GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_TEX0, GX_TEX_ST, GX_S16, 8);
+#if TARGET_PC
+    GXSetVtxAttrFmt(GX_VTXFMT0, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+#endif
     GXClearVtxDesc();
     GXSetVtxDesc(GX_VA_POS, GX_DIRECT);
     GXSetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+#if TARGET_PC
+    GXSetVtxDesc(GX_VA_CLR0, GX_DIRECT);
+#endif
     MTXRotDeg(rotMtx, 'Z', rot);
     MTXConcat(camMtx, rotMtx, camMtx);
     GXLoadPosMtxImm(drawMtx, GX_PNMTX0);
@@ -5513,10 +5736,14 @@ void drawCloudShadow(Mtx drawMtx, u8** pImg) {
         if (pPkt->mEff[i].mAlpha <= 0.000001f)
             continue;
 
+#if !TARGET_PC
         GXLoadTexObj(&texObj, GX_TEXMAP0);
 
         reg0.a = pPkt->mEff[i].mAlpha * 255.0f;
         GXSetTevColor(GX_TEVREG0, reg0);
+#else
+        reg0.a = pPkt->mEff[i].mAlpha * 255.0f;
+#endif
 
         p.x = pPkt->mEff[i].mBasePos.x + pPkt->mEff[i].mPos.x;
         p.y = pPkt->mEff[i].mBasePos.y + pPkt->mEff[i].mPos.y;
@@ -5556,12 +5783,24 @@ void drawCloudShadow(Mtx drawMtx, u8** pImg) {
 
         GXBegin(GX_QUADS, GX_VTXFMT0, 4);
         GXPosition3f32(pos[0].x, pos[0].y, pos[0].z);
+#if TARGET_PC
+        GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
         GXTexCoord2s16(0, 0);
         GXPosition3f32(pos[1].x, pos[1].y, pos[1].z);
+#if TARGET_PC
+        GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
         GXTexCoord2s16(0xFF, 0);
         GXPosition3f32(pos[2].x, pos[2].y, pos[2].z);
+#if TARGET_PC
+        GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
         GXTexCoord2s16(0xFF, 0xFF);
         GXPosition3f32(pos[3].x, pos[3].y, pos[3].z);
+#if TARGET_PC
+        GXColor4u8(reg0.r, reg0.g, reg0.b, (u8)reg0.a);
+#endif
         GXTexCoord2s16(0, 0xFF);
         GXEnd();
     }

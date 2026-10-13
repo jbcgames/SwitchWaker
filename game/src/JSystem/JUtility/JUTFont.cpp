@@ -41,6 +41,11 @@ f32 JUTFont::drawString_size_scale(f32 a1, f32 a2, f32 a3, f32 a4, const char* s
                                    bool a7) {
     f32 temp = a1;
 
+#if TARGET_PC
+    FontDrawContext context;
+    pushDrawState();
+#endif
+
     for (; usz > 0; usz--, str++) {
         u32 c = *(u8*)str;
         u32 b = c;
@@ -51,9 +56,17 @@ f32 JUTFont::drawString_size_scale(f32 a1, f32 a2, f32 a3, f32 a4, const char* s
             usz--;
         }
 
+#if TARGET_PC
+        a1 += drawChar_scale(a1, a2, a3, a4, b, a7, &context);
+#else
         a1 += drawChar_scale(a1, a2, a3, a4, b, a7);
+#endif
         a7 = 1;
     }
+
+#if TARGET_PC
+    popDrawState();
+#endif
 
     return a1 - temp;
 }

@@ -446,6 +446,7 @@ void applyHitch(const char*, const char* v, void*) { perfSetHitch((unsigned int)
 void applyHdStats(const char*, const char* v, void*) { pc_hd_textures_set_stats_every((unsigned int)atoi(v)); }
 void applyGpuGroups(const char*, const char* v, void*) { pc_gpu_groups_set(atoi(v)); }
 void applyFps60(const char*, const char* v, void*) { pc_fps60_set(strcmp(v, "1") == 0); }
+void applyFullSpeedClock(const char*, const char* v, void*) { pc_decouple_sim_set(strcmp(v, "1") == 0); }
 
 #define CHOICES(name) name, (int)(sizeof(name) / sizeof(name[0]))
 
@@ -585,6 +586,11 @@ const PcSettingDesc kBuiltins[] = {
      "60 images a second by interpolating between frames; the game still runs at 30. More CPU and "
      "battery. When it cannot keep up it lowers the resolution (Dynamic resolution) or drops to 30 for "
      "a while."},
+    {"COS_FULL_SPEED_CLOCK", "Velocidad real (anti cámara lenta)",
+     "Desacopla la simulación del renderizado. Si caen los FPS por carga gráfica, el juego avanza al 100% en tiempo real sin efecto de cámara lenta.",
+     PC_SETTING_TAB_PERFORMANCE, 0, CHOICES(kOnOff), "1", applyFullSpeedClock, nullptr, 70,
+     "Full-speed clock (anti slow-motion)",
+     "Decouples simulation from rendering. If FPS drops due to GPU load, the game runs at 100% full speed in real time without slow-motion."},
     // Calidad de vida (pc_qol.h, docs/QOL_PLAN.md: BetterWW's and wwrando's patches; all off by default)
     {"COS_QOL_INSTANT_TEXT", "Texto instantáneo",
      "Los textos aparecen enteros y sin pausas; mantener B pasa los mensajes (BetterWW).",

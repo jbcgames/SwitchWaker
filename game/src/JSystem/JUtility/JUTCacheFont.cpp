@@ -393,7 +393,7 @@ void JUTCacheFont::setGX(JUtility::TColor col1, JUtility::TColor col2) {
 }
 
 /* 802C0FE8-802C109C       .text loadImage__12JUTCacheFontFi11_GXTexMapID */
-void JUTCacheFont::loadImage(int param_0, GXTexMapID texMapId) {
+void JUTCacheFont::loadImage(int param_0, GXTexMapID texMapId FONT_DRAW_CTX) {
     TCachePage* cachePage = loadCache_char_subroutine(&param_0, false);
     if (cachePage != NULL) {
         mWidth = cachePage->field_0xc * (param_0 % int(cachePage->field_0x16));

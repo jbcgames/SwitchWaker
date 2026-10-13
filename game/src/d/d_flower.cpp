@@ -9,6 +9,9 @@
 #include "m_Do/m_Do_lib.h"
 #include "SSystem/SComponent/c_counter.h"
 #include "d/actor/d_a_player.h"
+#if TARGET_PC
+#include "pc/pc_batch.h"
+#endif
 
 #include "assets/l_Txq_bessou_hanaTEX.h"
 const u16 l_Txq_bessou_hanaTEX__width = 0x40;
@@ -345,6 +348,82 @@ void dFlower_packet_c::draw() {
 #endif
     GXCallDisplayList(l_matDL, 0xA0);
 
+#if TARGET_PC
+    static const void* sDecodedOhanaDL = nullptr;
+    static const void* sDecodedOhanaCutDL = nullptr;
+    static pc::batch::Template sTplOhana;
+    static pc::batch::Template sTplOhanaCut;
+    static Vec sFlowerTransformedPos[pc::batch::Template::kMaxPosRefs];
+
+    if (sDecodedOhanaDL != l_OhanaDL) {
+        pc::batch::decode_template((const u8*)l_OhanaDL, 0x100, sTplOhana);
+        sDecodedOhanaDL = l_OhanaDL;
+    }
+    if (sDecodedOhanaCutDL != l_Ohana_gutDL) {
+        pc::batch::decode_template((const u8*)l_Ohana_gutDL, 0xA0, sTplOhanaCut);
+        sDecodedOhanaCutDL = l_Ohana_gutDL;
+    }
+
+    static GXVtxDescList l_batchFlowerDescList[] = {
+        {GX_VA_POS, GX_DIRECT},
+        {GX_VA_CLR0, GX_INDEX8},
+        {GX_VA_TEX0, GX_INDEX8},
+        {GX_VA_NULL, GX_NONE},
+    };
+    GXSetVtxDescv(l_batchFlowerDescList);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+
+    Mtx identity;
+    MTXIdentity(identity);
+    GXLoadPosMtxImm(identity, GX_PNMTX0);
+
+    dFlower_room_c* pRoom = &mRoom[0];
+    for(int i = 0; i < ARRAY_SSIZE(mRoom); pRoom++, i++) {
+        if(pRoom->field_0x0 == NULL) continue;
+        dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
+        GXSetTevColorS10(GX_TEVREG0, tevstr->mColorC0);
+        GXSetTevColor(GX_TEVREG1, tevstr->mColorK0);
+        dKy_GxFog_tevstr_set(tevstr);
+
+        // Standing flowers (pass 1)
+        u32 emittedStanding = 0;
+        bool openStanding = false;
+        for(dFlower_data_c* pNext = pRoom->field_0x0; pNext != NULL; pNext = pNext->field_0x40) {
+            if(!cLib_checkBit<u8>(pNext->field_0x00, 0x4) && !cLib_checkBit<u8>(pNext->field_0x00, 0x20) && !cLib_checkBit<u8>(pNext->field_0x00, 0x8)) {
+                if(!openStanding) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openStanding = true;
+                }
+                pc::batch::split_batch(emittedStanding, sTplOhana.vtxCount);
+                pc::batch::transform_positions(sTplOhana, l_pos, pNext->field_0x10, sFlowerTransformedPos);
+                pc::batch::emit_element(sTplOhana, sFlowerTransformedPos);
+            }
+        }
+        if(openStanding) {
+            GXEnd();
+        }
+
+        // Cut flowers (pass 1)
+        u32 emittedCut = 0;
+        bool openCut = false;
+        for(dFlower_data_c* pNext = pRoom->field_0x0; pNext != NULL; pNext = pNext->field_0x40) {
+            if(!cLib_checkBit<u8>(pNext->field_0x00, 0x4) && !cLib_checkBit<u8>(pNext->field_0x00, 0x20) && cLib_checkBit<u8>(pNext->field_0x00, 0x8)) {
+                if(!openCut) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openCut = true;
+                }
+                pc::batch::split_batch(emittedCut, sTplOhanaCut.vtxCount);
+                pc::batch::transform_positions(sTplOhanaCut, l_pos, pNext->field_0x10, sFlowerTransformedPos);
+                pc::batch::emit_element(sTplOhanaCut, sFlowerTransformedPos);
+            }
+        }
+        if(openCut) {
+            GXEnd();
+        }
+    }
+#else
     dFlower_room_c* pRoom = &mRoom[0];
     for(int i = 0; i < ARRAY_SSIZE(mRoom); pRoom++, i++) {
         dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
@@ -368,6 +447,7 @@ void dFlower_packet_c::draw() {
             pNext = pNext->field_0x40;
         }
     }
+#endif
 
 #if TARGET_PC
     GXSETARRAY(GX_VA_POS, mPosArray,
@@ -388,6 +468,68 @@ void dFlower_packet_c::draw() {
 #endif
     GXCallDisplayList(mDL1, mDL1Size);
 
+#if TARGET_PC
+    static const void* sDecodedDL2 = nullptr;
+    static const void* sDecodedDL3 = nullptr;
+    static pc::batch::Template sTpl2;
+    static pc::batch::Template sTpl3;
+
+    if (sDecodedDL2 != mDL2) {
+        pc::batch::decode_template((const u8*)mDL2, mDL2Size, sTpl2);
+        sDecodedDL2 = mDL2;
+    }
+    if (sDecodedDL3 != mDL3) {
+        pc::batch::decode_template((const u8*)mDL3, mDL3Size, sTpl3);
+        sDecodedDL3 = mDL3;
+    }
+
+    GXSetVtxDescv(l_batchFlowerDescList);
+    GXLoadPosMtxImm(identity, GX_PNMTX0);
+
+    pRoom = &mRoom[0];
+    for(int i = 0; i < ARRAY_SSIZE(mRoom); pRoom++, i++) {
+        if(pRoom->field_0x0 == NULL) continue;
+        dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
+        GXSetTevColorS10(GX_TEVREG0, tevstr->mColorC0);
+        GXSetTevColor(GX_TEVREG1, tevstr->mColorK0);
+
+        // Standing flowers (pass 2)
+        u32 emittedStanding = 0;
+        bool openStanding = false;
+        for(dFlower_data_c* pNext = pRoom->field_0x0; pNext != NULL; pNext = pNext->field_0x40) {
+            if(!cLib_checkBit<u8>(pNext->field_0x00, 0x4) && cLib_checkBit<u8>(pNext->field_0x00, 0x20) && !cLib_checkBit<u8>(pNext->field_0x00, 0x8)) {
+                if(!openStanding) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openStanding = true;
+                }
+                pc::batch::split_batch(emittedStanding, sTpl2.vtxCount);
+                pc::batch::transform_positions(sTpl2, mPosArray, pNext->field_0x10, sFlowerTransformedPos);
+                pc::batch::emit_element(sTpl2, sFlowerTransformedPos);
+            }
+        }
+        if(openStanding) {
+            GXEnd();
+        }
+
+        // Cut flowers (pass 2)
+        u32 emittedCut = 0;
+        bool openCut = false;
+        for(dFlower_data_c* pNext = pRoom->field_0x0; pNext != NULL; pNext = pNext->field_0x40) {
+            if(!cLib_checkBit<u8>(pNext->field_0x00, 0x4) && cLib_checkBit<u8>(pNext->field_0x00, 0x20) && cLib_checkBit<u8>(pNext->field_0x00, 0x8)) {
+                if(!openCut) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openCut = true;
+                }
+                pc::batch::split_batch(emittedCut, sTpl3.vtxCount);
+                pc::batch::transform_positions(sTpl3, mPosArray, pNext->field_0x10, sFlowerTransformedPos);
+                pc::batch::emit_element(sTpl3, sFlowerTransformedPos);
+            }
+        }
+        if(openCut) {
+            GXEnd();
+        }
+    }
+#else
     pRoom = &mRoom[0];
     for(int i = 0; i < ARRAY_SSIZE(mRoom); pRoom++, i++) {
         dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
@@ -410,6 +552,7 @@ void dFlower_packet_c::draw() {
             pNext = pNext->field_0x40;
         }
     }
+#endif
 
 #if VERSION > VERSION_JPN
     J3DShape::resetVcdVatCache();

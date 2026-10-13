@@ -6,6 +6,17 @@
 #include "helpers/endian.h"
 #include "string.h"
 
+#if TARGET_PC
+struct FontDrawContext {
+    bool isTextureLoaded = false;
+};
+#define FONT_DRAW_CTX , FontDrawContext* context
+#define FONT_DRAW_CTX_ARG , context
+#else
+#define FONT_DRAW_CTX
+#define FONT_DRAW_CTX_ARG
+#endif
+
 // Disc data (BFN files and the compiled-in JUTResFONT_Ascfont_fix12), stored big-endian: BE(T) is T
 // on the GameCube (phase 4, step 4.3; as in Dusklight's JUTFont.h).
 struct ResFONT {
@@ -66,7 +77,14 @@ public:
 
     /* 0x0C */ virtual void setGX() = 0;
     /* 0x10 */ virtual void setGX(JUtility::TColor col1, JUtility::TColor col2) { setGX(); }
-    /* 0x14 */ virtual f32 drawChar_scale(f32 a1, f32 a2, f32 a3, f32 a4, int a5, bool a6) = 0;
+    /* 0x14 */ virtual f32 drawChar_scale(f32 a1, f32 a2, f32 a3, f32 a4, int a5, bool a6 FONT_DRAW_CTX) = 0;
+#if TARGET_PC
+    f32 drawChar_scale(f32 a1, f32 a2, f32 a3, f32 a4, int a5, bool a6) {
+        return drawChar_scale(a1, a2, a3, a4, a5, a6, nullptr);
+    }
+    virtual void pushDrawState() {}
+    virtual void popDrawState() {}
+#endif
     /* 0x18 */ virtual int getLeading() const = 0;
     /* 0x1C */ virtual int getAscent() const = 0;
     /* 0x20 */ virtual int getDescent() const = 0;

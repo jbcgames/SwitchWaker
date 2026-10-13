@@ -11,7 +11,12 @@ class myFontClass : public JUTResFont {
 public:
     myFontClass(const ResFONT* pFont, JKRHeap* pHeap) : JUTResFont(pFont, pHeap) {}
     ~myFontClass();
-    f32 drawChar_scale(f32, f32, f32, f32, int, bool);
+    f32 drawChar_scale(f32, f32, f32, f32, int, bool FONT_DRAW_CTX);
+#if TARGET_PC
+    f32 drawChar_scale(f32 a1, f32 a2, f32 a3, f32 a4, int a5, bool a6) {
+        return drawChar_scale(a1, a2, a3, a4, a5, a6, nullptr);
+    }
+#endif
 };
 
 class menu_of_scene_class : public scene_class {

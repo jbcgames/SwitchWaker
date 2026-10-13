@@ -18,14 +18,31 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
 
 __attribute__((weak)) void OSVReport(const char* msg, va_list list) {
+#if TARGET_PC
+    static int s_osreport_active = -1;
+    if (s_osreport_active < 0) {
+        const char* env = getenv("COS_REPORT");
+        s_osreport_active = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    if (!s_osreport_active) return;
+#endif
     std::vfprintf(stderr, msg, list);
 }
 
 __attribute__((weak)) void OSReport(const char* msg, ...) {
+#if TARGET_PC
+    static int s_osreport_active = -1;
+    if (s_osreport_active < 0) {
+        const char* env = getenv("COS_REPORT");
+        s_osreport_active = (env && strcmp(env, "1") == 0) ? 1 : 0;
+    }
+    if (!s_osreport_active) return;
+#endif
     va_list args;
     va_start(args, msg);
     OSVReport(msg, args);

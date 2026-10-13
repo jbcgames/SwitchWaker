@@ -243,7 +243,11 @@ cPhs_State dScnName_c::create() {
         g_env_light.mVrKasumiMaeColor.b = 0xff;
         g_env_light.mVrKasumiMaeColor.a = 0xff;
 
+#if TARGET_PC
+        field_0x558 = 0;
+#else
         field_0x558 = g_snHIO.field_0x5;
+#endif
         field_0x1bb8 = 0;
 
 #if VERSION == VERSION_DEMO
@@ -253,7 +257,11 @@ cPhs_State dScnName_c::create() {
         if (fpcM_GetName(this) == fpcNm_NAME_SCENE_e) {
             mMainProc = 0;
             mMemCardCheckProc = 0;
+#if TARGET_PC
+            mDrawProc = 4;
+#else
             mDrawProc = 0;
+#endif
         } else if (fpcM_GetName(this) == fpcNm_NAMEEX_SCENE_e) {
             mMainProc = 10;
             mDrawProc = 3;
@@ -653,8 +661,11 @@ void dScnName_c::setView() {
 /* 80230714-802307EC       .text draw__10dScnName_cFv */
 BOOL dScnName_c::draw() {
 #if TARGET_PC
+    // Milestone M10 file-select (pc_file_select.cpp): the name scene drew this frame.
+    pc_name_scene_drawn(mMainProc, mMemCardCheckProc, mDrawProc);
+    return TRUE;
+#else
     pc_set_frame_phase("name_draw");
-#endif
     setView();
     for (create_tag_class* pTag = fopDwIt_Begin(); pTag != NULL; pTag = fopDwIt_Next(pTag)) {
         void* process = pTag->mpTagData;
@@ -664,21 +675,15 @@ BOOL dScnName_c::draw() {
         if (field_0x55d && !g_snHIO.field_0xb) {
             dComIfGd_set2DOpa(&cloth);
         }
-#if TARGET_PC
         pc_set_frame_phase("name_draw_proc");
-#endif
         (this->*(DrawProc[mDrawProc]))();
-#if TARGET_PC
         pc_set_frame_phase("name_draw_btn_icon");
-#endif
         dComIfGd_set2DOpa(&btnIcon);
     }
-#if TARGET_PC
-    // Milestone M10 file-select (pc_file_select.cpp): the name scene drew this frame.
     pc_name_scene_drawn(mMainProc, mMemCardCheckProc, mDrawProc);
     pc_set_frame_phase("name_draw_done");
-#endif
     return TRUE;
+#endif
 }
 
 /* 802307EC-80230A14       .text __dt__10dScnName_cFv */
@@ -813,6 +818,79 @@ void dScnName_c::MemCardStatCheck() {
     }
 }
 
+#if TARGET_PC
+void dScnName_c::directLoadAndStart() {
+    dComIfGs_setDataNum(0);
+    const bool has_valid_save = mDoMemCdRWm_TestCheckSumGameData(saveMemory) && (saveMemory[0x157] != 0);
+    if (has_valid_save) {
+        OSReport("[cos] [DIRECT] Existing save in slot 0 (Player: %s), loading directly into gameplay...\n", (char*)(&saveMemory[0x157]));
+        dComIfGs_setCardToMemory(saveMemory, 0);
+        if (saveMemory[0x19B] != 0 && !dComIfGs_isEventBit(dSv_event_flag_c::UNK_3510)) {
+            field_0x1bb9 = 1;
+        }
+
+        u8 pictureNum = dComIfGs_getPictureNum();
+        if (pictureNum != 0) {
+            int i;
+            u8 failed = 0;
+            u8 r25 = 0;
+            u8 boxDataIdx = 0;
+            card_pictdata* workBuf = &savePicDatabuf[0 * 3];
+            for (i = 0; i < 3; i++) {
+                if ((dComIfGs_getEventReg(dSv_event_flag_c::UNK_89FF) & (1 << i))) {
+                    workBuf++;
+                    continue;
+                }
+
+                if (mDoMemCdRWm_TestCheckSumPictData(workBuf)) {
+                    JKRMainRamToAram((u8*)workBuf, dComIfGp_getPictureBoxData(boxDataIdx), sizeof(card_pictdata), EXPAND_SWITCH_UNKNOWN0, 0, NULL, -1);
+                    boxDataIdx++;
+                } else {
+                    failed++;
+                }
+
+                r25++;
+                if (r25 == pictureNum)
+                    break;
+
+                workBuf++;
+            }
+
+            dComIfGs_setPictureNum(pictureNum - failed);
+        }
+        dComIfGs_setEventReg(dSv_event_flag_c::UNK_89FF, 0);
+        mDoMemCd_setPictDataPtr(NULL);
+        dComIfGp_itemDataInit();
+    } else {
+        OSReport("[cos] [DIRECT] No valid save in slot 0, auto-creating new game with name 'Link'...\n");
+        dComIfGs_init();
+        dComIfGp_itemDataInit();
+        char defaultName[] = "Link";
+        dComIfGs_setPlayerName(defaultName);
+
+        dComIfGs_setInitDataToCard(saveMemory, 0);
+        dComIfGs_setMemoryToCard(saveMemory, 0);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
+        dComIfGs_setInitDataToCard(saveMemory, 1);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
+        dComIfGs_setInitDataToCard(saveMemory, 2);
+        mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
+        mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
+        for (int timeout = 0; timeout < 200; timeout++) {
+            if (mDoMemCd_SaveSync() == 1) {
+                break;
+            }
+            usleep(5000);
+        }
+    }
+
+    field_0x55f = 0; // 0 = PLAY_SCENE (bypass prologue scene straight to Outset Island)
+    mMainProc = 9;   // changeGameScene
+    mDrawProc = 4;   // NoneDraw: NEVER draw any file select UI
+    changeGameScene();
+}
+#endif
+
 /* 80230C78-80230D20       .text MemCardLoadWait__10dScnName_cFv */
 void dScnName_c::MemCardLoadWait() {
     int rt = mDoMemCd_LoadSync(saveMemory, sizeof(saveMemory), 0);
@@ -825,8 +903,13 @@ void dScnName_c::MemCardLoadWait() {
             dComIfGs_setNoFile(0);
         }
 #endif
+#if TARGET_PC
+        directLoadAndStart();
+        return;
+#else
         mMainProc = 1;
         mDrawProc = 4;
+#endif
     } else if (rt == 2) {
         mMemCardCheckProc = 0;
     }
@@ -1011,6 +1094,15 @@ void dScnName_c::MemCardMakeGameFile() {
 
 /* 802312D8-80231398       .text MemCardMakeGameFileCheck__10dScnName_cFv */
 void dScnName_c::MemCardMakeGameFileCheck() {
+#if TARGET_PC
+    if (field_0x1bbc == 1) {
+        dComIfGs_setNewFile(1);
+        field_0x1bb8 = 0;
+        field_0x55a = 0xFF;
+        directLoadAndStart();
+        return;
+    }
+#endif
     if (dFe_c->getStatus() == 2) {
         if (field_0x1bbc == 2) {
             field_0x55a = 0xFF;
@@ -1105,83 +1197,6 @@ void dScnName_c::NoteOpenWait() {
         fopMsgM_setAlpha(&field_0x554[field_0x1c58]);
 
         field_0x1c58 ^= 1;
-#endif
-#if TARGET_PC
-        if (fpcM_GetName(this) == fpcNm_NAME_SCENE_e) {
-            dComIfGs_setDataNum(0);
-            const bool has_valid_save = mDoMemCdRWm_TestCheckSumGameData(saveMemory) && (saveMemory[0x157] != 0);
-            if (has_valid_save) {
-                OSReport("[cos] [BYPASS] Existing save detected in slot 0 (Player: %s), loading...\n", (char*)(&saveMemory[0x157]));
-                dComIfGs_setCardToMemory(saveMemory, 0);
-                if (saveMemory[0x19B] != 0 && !dComIfGs_isEventBit(dSv_event_flag_c::UNK_3510)) {
-                    field_0x1bb9 = 1;
-                }
-
-                u8 pictureNum = dComIfGs_getPictureNum();
-                if (pictureNum != 0) {
-                    int i;
-                    u8 failed = 0;
-                    u8 r25 = 0;
-                    u8 boxDataIdx = 0;
-                    card_pictdata* workBuf = &savePicDatabuf[0 * 3];
-                    for (i = 0; i < 3; i++) {
-                        if ((dComIfGs_getEventReg(dSv_event_flag_c::UNK_89FF) & (1 << i))) {
-                            workBuf++;
-                            continue;
-                        }
-
-                        if (mDoMemCdRWm_TestCheckSumPictData(workBuf)) {
-                            JKRMainRamToAram((u8*)workBuf, dComIfGp_getPictureBoxData(boxDataIdx), sizeof(card_pictdata), EXPAND_SWITCH_UNKNOWN0, 0, NULL, -1);
-                            boxDataIdx++;
-                        } else {
-                            failed++;
-                        }
-
-                        r25++;
-                        if (r25 == pictureNum)
-                            break;
-
-                        workBuf++;
-                    }
-
-                    dComIfGs_setPictureNum(pictureNum - failed);
-                }
-                dComIfGs_setEventReg(dSv_event_flag_c::UNK_89FF, 0);
-                mDoMemCd_setPictDataPtr(NULL);
-                dComIfGp_itemDataInit();
-
-                field_0x55f = 0; // 0 = PLAY_SCENE
-                mMainProc = 9;   // changeGameScene
-                mDrawProc = 4;   // NoneDraw
-                return;
-            } else {
-                OSReport("[cos] [BYPASS] No valid save in slot 0, creating new game with name 'Link'...\n");
-                dComIfGs_init();
-                dComIfGp_itemDataInit();
-                char defaultName[] = "Link";
-                dComIfGs_setPlayerName(defaultName);
-
-                dComIfGs_setInitDataToCard(saveMemory, 0);
-                dComIfGs_setMemoryToCard(saveMemory, 0);
-                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 0);
-                dComIfGs_setInitDataToCard(saveMemory, 1);
-                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 1);
-                dComIfGs_setInitDataToCard(saveMemory, 2);
-                mDoMemCdRWm_SetCheckSumGameData(saveMemory, 2);
-                mDoMemCd_Save(saveMemory, sizeof(saveMemory), 0);
-                for (int timeout = 0; timeout < 200; timeout++) {
-                    if (mDoMemCd_SaveSync() == 1) {
-                        break;
-                    }
-                    usleep(5000);
-                }
-
-                field_0x55f = 0; // 0 = PLAY_SCENE (bypass prologue scene directly to Outset Island)
-                mMainProc = 9;   // changeGameScene
-                mDrawProc = 4;   // NoneDraw
-                return;
-            }
-        }
 #endif
         mMainProc = 3;
         mOpenProc = 0;

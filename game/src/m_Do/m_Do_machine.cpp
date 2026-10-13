@@ -499,7 +499,9 @@ GXRenderModeObj g_ntscZeldaProg = {
 
 /* 8000C70C-8000CB48       .text mDoMch_Create__Fv */
 bool mDoMch_Create() {
-#if VERSION == VERSION_DEMO
+#if TARGET_PC
+    OSReportDisable();
+#elif VERSION == VERSION_DEMO
     if (mDoMain::developmentMode == 0) {
         OSReportDisable();
     }

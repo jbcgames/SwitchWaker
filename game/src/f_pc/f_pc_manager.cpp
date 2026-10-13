@@ -279,7 +279,12 @@ void fpcM_Management(fpcM_ManagementFunc callBack1, fpcM_ManagementFunc callBack
         return;
 
 #if VERSION > VERSION_DEMO
-    cAPIGph_Painter();
+#if TARGET_PC
+    if (!pc_sim_tick_skip_painter())
+#endif
+    {
+        cAPIGph_Painter();
+    }
 #endif
     fpcDt_Handler();
     if (!fpcPi_Handler())

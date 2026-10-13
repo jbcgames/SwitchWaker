@@ -51,7 +51,7 @@ public:
     virtual ~JUTCacheFont();
     virtual void setGX();
     virtual void setGX(JUtility::TColor, JUtility::TColor);
-    virtual void loadImage(int, GXTexMapID);
+    virtual void loadImage(int, GXTexMapID FONT_DRAW_CTX);
     virtual void setBlock();
 
     void setPagingType(EPagingType type) { mPagingType = type; }

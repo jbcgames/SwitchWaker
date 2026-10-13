@@ -251,7 +251,10 @@ void pc_aurora_init(int argc, char* argv[]) {
     if (const char* envMem = getenv("COS_MEM1_MB"); envMem && *envMem) {
         mem1 = (uint32_t)atoi(envMem) * 1024 * 1024;
     }
-    config.logLevel = LOG_INFO;
+    config.logLevel = LOG_WARNING;
+    if (const char* envLog = getenv("COS_LOG_INFO"); envLog && strcmp(envLog, "1") == 0) {
+        config.logLevel = LOG_INFO;
+    }
     config.allowTextureDumps = false;
     config.mem1Size = mem1;
     config.mem2Size = kMem2Size;

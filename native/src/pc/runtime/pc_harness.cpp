@@ -197,7 +197,7 @@ void pc_harness_init(int argc, char* argv[]) {
                gConfig.perfEvery);
     }
 #if defined(COS_PERF_BUILD)
-    writef(STDERR_FILENO, "[cos] perf: COS_PERF_BUILD variant (-O2, generic ARMv8.0, no Tracy)\n");
+    writef(STDERR_FILENO, "[cos] perf: COS_PERF_BUILD variant (-O3, cortex-a35, no Tracy)\n");
 #endif
     setGameThreadQos();
 

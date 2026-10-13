@@ -2,10 +2,14 @@
 #define J3DSHAPEDRAW_H
 
 #include "dolphin/types.h"
+#include "dolphin/gx/GXAttr.h"
 
 class J3DShapeDraw {
 public:
     J3DShapeDraw(u8 const*, u32);
+#if TARGET_PC
+    J3DShapeDraw(u8 const*, u32, const GXVtxDescList*);
+#endif
     void draw() const;
 
     virtual ~J3DShapeDraw() {}

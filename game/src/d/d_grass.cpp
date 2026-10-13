@@ -16,6 +16,9 @@
 #include "m_Do/m_Do_graphic.h"
 #include "SSystem/SComponent/c_counter.h"
 #include "dolphin/gf/GF.h"
+#if TARGET_PC
+#include "pc/pc_batch.h"
+#endif
 
 #include "assets/l_K_kusa_00TEX.h"
 const u32 l_K_kusa_00TEX__width = 64;
@@ -309,6 +312,83 @@ void dGrass_packet_c::draw() {
 #endif
     GXCallDisplayList(mpMatDL, mMatDLSize);
 
+#if TARGET_PC
+    static const void* sDecodedDL = nullptr;
+    static const void* sDecodedDLCut = nullptr;
+    static pc::batch::Template sTplStanding;
+    static pc::batch::Template sTplCut;
+    static Vec sTransformedPos[pc::batch::Template::kMaxPosRefs];
+
+    if (sDecodedDL != mpDL) {
+        pc::batch::decode_template((const u8*)mpDL, mDLSize, sTplStanding);
+        sDecodedDL = mpDL;
+    }
+    if (sDecodedDLCut != mpDLCut) {
+        pc::batch::decode_template((const u8*)mpDLCut, mDLCutSize, sTplCut);
+        sDecodedDLCut = mpDLCut;
+    }
+
+    static GXVtxDescList l_batchVtxDescList[] = {
+        {GX_VA_POS, GX_DIRECT},
+        {GX_VA_CLR0, GX_INDEX8},
+        {GX_VA_TEX0, GX_INDEX8},
+        {GX_VA_NULL, GX_NONE},
+    };
+    GFSetVtxDescv(l_batchVtxDescList);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_POS, GX_POS_XYZ, GX_F32, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_CLR0, GX_CLR_RGBA, GX_RGBA8, 0);
+    GXSetVtxAttrFmt(GX_VTXFMT1, GX_VA_TEX0, GX_TEX_ST, GX_F32, 0);
+
+    Mtx identity;
+    MTXIdentity(identity);
+    GXLoadPosMtxImm(identity, GX_PNMTX0);
+
+    dGrass_room_c* room = &mGrassRoom[0];
+    for (s32 i = 0; i < (s32)ARRAY_SIZE(mGrassRoom); room++, i++) {
+        if (room->mpData == NULL) continue;
+        dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
+        GFSetTevColorS10(GX_TEVREG0, tevstr->mColorC0);
+        GFSetTevColor(GX_TEVREG1, tevstr->mColorK0);
+        dKy_GfFog_tevstr_set(tevstr);
+
+        // Batch standing grass blades
+        u32 emittedStanding = 0;
+        bool openStanding = false;
+        for (dGrass_data_c* data = room->mpData; data != NULL; data = data->mpNextData) {
+            if (!cLib_checkBit<u8>(data->mInitFlags, 0x02) && data->mAnimIdx >= 0) {
+                if (!openStanding) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openStanding = true;
+                }
+                pc::batch::split_batch(emittedStanding, sTplStanding.vtxCount);
+                pc::batch::transform_positions(sTplStanding, mpPosArr, data->mModelMtx, sTransformedPos);
+                pc::batch::emit_element(sTplStanding, sTransformedPos);
+            }
+        }
+        if (openStanding) {
+            GXEnd();
+        }
+
+        // Batch cut grass blades
+        u32 emittedCut = 0;
+        bool openCut = false;
+        for (dGrass_data_c* data = room->mpData; data != NULL; data = data->mpNextData) {
+            if (!cLib_checkBit<u8>(data->mInitFlags, 0x02) && data->mAnimIdx < 0) {
+                if (!openCut) {
+                    GXBegin(GX_TRIANGLES, GX_VTXFMT1, GX_AUTO);
+                    openCut = true;
+                }
+                pc::batch::split_batch(emittedCut, sTplCut.vtxCount);
+                pc::batch::transform_positions(sTplCut, mpPosArr, data->mModelMtx, sTransformedPos);
+                pc::batch::emit_element(sTplCut, sTransformedPos);
+            }
+        }
+        if (openCut) {
+            GXEnd();
+        }
+    }
+    GFSetVtxDescv(l_vtxDescList);
+#else
     dGrass_room_c* room = &mGrassRoom[0];
     for (s32 i = 0; i < (s32)ARRAY_SIZE(mGrassRoom); room++, i++) {
         dKy_tevstr_c* tevstr = dComIfGp_roomControl_getTevStr(i);
@@ -325,6 +405,7 @@ void dGrass_packet_c::draw() {
             }
         }
     }
+#endif
 
 #if VERSION > VERSION_JPN
     J3DShape::resetVcdVatCache();

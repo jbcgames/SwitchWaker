@@ -378,8 +378,8 @@ static cPhs_State dScnMenu_Create(scene_class* i_scn) {
 myFontClass::~myFontClass() {}
 
 /* 8022F7A8-8022F7CC       .text drawChar_scale__11myFontClassFffffib */
-f32 myFontClass::drawChar_scale(f32 param_1, f32 param_2, f32 param_3, f32 param_4, int param_5, bool param_6) {
-    return JUTResFont::drawChar_scale(param_1, param_2, 12.0f, param_4, param_5, param_6);
+f32 myFontClass::drawChar_scale(f32 param_1, f32 param_2, f32 param_3, f32 param_4, int param_5, bool param_6 FONT_DRAW_CTX) {
+    return JUTResFont::drawChar_scale(param_1, param_2, 12.0f, param_4, param_5, param_6 FONT_DRAW_CTX_ARG);
 }
 
 static scene_method_class l_dScnMenu_Method = {

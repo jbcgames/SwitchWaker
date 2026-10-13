@@ -84,6 +84,13 @@ unsigned char pc_card_pal_language(unsigned char saved);
    retraces the console's VI interrupt would have counted meanwhile (step 6.2). */
 void pc_wait_for_tick(unsigned int p1, unsigned short p2);
 
+/* ---- Decoupled simulation clock ("Full-Speed Clock" / adaptive frameskip) ---- */
+extern "C" bool pc_decouple_sim_active(void);
+extern "C" void pc_decouple_sim_set(int on);
+extern "C" int pc_sim_ticks_to_run(void);
+extern "C" bool pc_sim_tick_skip_painter(void);
+extern "C" void pc_set_sim_tick_skip_painter(bool skip);
+
 /* ---- 60 presents a second (pc_frame.cpp) -------------------------------------------------------- */
 
 /* COS_FPS60_TEST=1 ([dev]; docs/FPS60_PLAN.md, step A): each game frame of two retraces is presented

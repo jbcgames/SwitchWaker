@@ -302,6 +302,9 @@ void mDoMemCdRWm_SetCardStat(CARDFileInfo* card) {
 
 /* 8001A1EC-8001A2F0       .text mDoMemCdRWm_CheckCardStat__FP12CARDFileInfo */
 BOOL mDoMemCdRWm_CheckCardStat(CARDFileInfo* card) {
+#if TARGET_PC
+    return TRUE;
+#else
     CARDStat stat;
     CARDGetStatus(mDoMemCd_getNowSlot(), card->fileNo, &stat);
     if (!(stat.iconAddr == 0 &&
@@ -326,6 +329,7 @@ BOOL mDoMemCdRWm_CheckCardStat(CARDFileInfo* card) {
         CARDGetIconSpeed(&stat, 7) == 0))
         return false;
     return true;
+#endif
 }
 
 /* 8001A2F0-8001A330       .text mDoMemCdRWm_CalcCheckSum__FPvUl */

@@ -12,6 +12,7 @@
 #include "JSystem/JUtility/JUTConsole.h"
 #include "JSystem/JUtility/JUTDataHeader.h"
 #include "dolphin/gx/GX.h"
+#include "dolphin/gx/GXExtra.h"
 #include "dolphin/types.h"
 
 IsLeadByte_func const JUTResFont::saoAboutEncoding_[3] = {
@@ -42,6 +43,12 @@ JUTResFont::~JUTResFont() {
 
 /* 802C2180-802C21A4       .text deleteMemBlocks_ResFont__10JUTResFontFv */
 void JUTResFont::deleteMemBlocks_ResFont() {
+#if TARGET_PC
+    if (mJoinedTextureHeight > 0) {
+        GXDestroyTexObj(&mJoinedTextureObject);
+        mJoinedTextureHeight = 0;
+    }
+#endif
     delete[] mpMemBlocks;
 }
 
@@ -55,6 +62,9 @@ void JUTResFont::initialize_state() {
     mWidth = 0;
     mHeight = 0;
     mTexPageIdx = -1;
+#if TARGET_PC
+    mJoinedTextureHeight = 0;
+#endif
 }
 
 /* 802C21D0-802C2230       .text initiate__10JUTResFontFPC7ResFONTP7JKRHeap */
@@ -100,9 +110,52 @@ bool JUTResFont::protected_initiate(const ResFONT* pFont, JKRHeap* pHeap) {
             mpMapBlocks = (ResFONT::MAP1**)block;
         }
         setBlock();
+#if TARGET_PC
+        initJoinedTexture();
+#endif
         return true;
     }
 }
+
+#if TARGET_PC
+void JUTResFont::initJoinedTexture() {
+    mJoinedTextureHeight = 0;
+    if (mGlyphBlockNum != 1 || !mpGlyphBlocks || !mpGlyphBlocks[0]) {
+        return;
+    }
+
+    const ResFONT::GLY1& block = *mpGlyphBlocks[0];
+    if (block.textureWidth % 8 != 0 || block.textureHeight % 8 != 0) {
+        return;
+    }
+
+    int pageCount = 0;
+    u32 pageNumCells = (u32)block.numRows * (u32)block.numColumns;
+    if (pageNumCells == 0) {
+        return;
+    }
+    for (u32 code = block.startCode; code < block.endCode; code += pageNumCells) {
+        pageCount += 1;
+    }
+    if (pageCount == 0) {
+        return;
+    }
+
+    mJoinedTextureHeight = block.textureHeight * pageCount;
+    GXInitTexObj(
+        &mJoinedTextureObject,
+        block.data,
+        block.textureWidth,
+        mJoinedTextureHeight,
+        (GXTexFmt)(u16)block.textureFormat,
+        GX_CLAMP,
+        GX_CLAMP,
+        GX_FALSE
+    );
+
+    GXInitTexObjLOD(&mJoinedTextureObject, GX_LINEAR, GX_LINEAR, 0.0f, 0.0f, 0.0f, 0U, 0U, GX_ANISO_1);
+}
+#endif
 
 /* 802C233C-802C2438       .text countBlock__10JUTResFontFv */
 void JUTResFont::countBlock() {
@@ -232,7 +285,7 @@ void JUTResFont::setGX(JUtility::TColor col1, JUtility::TColor col2) {
 }
 
 /* 802C28F8-802C2D6C       .text drawChar_scale__10JUTResFontFffffib */
-f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int chr, bool flag) {
+f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int chr, bool flag FONT_DRAW_CTX) {
     JUTFont::TWidth width;
     f32 x1;
     f32 y1;
@@ -240,7 +293,7 @@ f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int c
     f32 x2;
 
     JUT_ASSERT(0x179, mValid)
-    loadFont(chr, GX_TEXMAP0, &width);
+    loadFont(chr, GX_TEXMAP0, &width FONT_DRAW_CTX_ARG);
 
     if (mFixed || !flag) {
         x1 = posX;
@@ -262,10 +315,19 @@ f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int c
     f32 y2 = descent * scaledHeight + posY;
 
     // Glyph details
-    int u1 = (mWidth * 0x8000) / mpGlyphBlocks[field_0x66]->textureWidth;
-    int v1 = (mHeight * 0x8000) / mpGlyphBlocks[field_0x66]->textureHeight;
-    s32 u2 = ((mWidth + mpGlyphBlocks[field_0x66]->cellWidth) * 0x8000) / mpGlyphBlocks[field_0x66]->textureWidth;
-    s32 v2 = ((mHeight + mpGlyphBlocks[field_0x66]->cellHeight) * 0x8000) / mpGlyphBlocks[field_0x66]->textureHeight;
+    u16 texW = mpGlyphBlocks[field_0x66]->textureWidth;
+#if TARGET_PC
+    u16 texH = (mJoinedTextureHeight > 0) ? mJoinedTextureHeight : (u16)mpGlyphBlocks[field_0x66]->textureHeight;
+#else
+    u16 texH = mpGlyphBlocks[field_0x66]->textureHeight;
+#endif
+    u16 cellW = mpGlyphBlocks[field_0x66]->cellWidth;
+    u16 cellH = mpGlyphBlocks[field_0x66]->cellHeight;
+
+    int u1 = (mWidth * 0x8000) / texW;
+    int v1 = (mHeight * 0x8000) / texH;
+    s32 u2 = ((mWidth + cellW) * 0x8000) / texW;
+    s32 v2 = ((mHeight + cellH) * 0x8000) / texH;
 
     GXBegin(GX_QUADS, GX_VTXFMT0, 4);
 
@@ -295,12 +357,12 @@ f32 JUTResFont::drawChar_scale(f32 posX, f32 posY, f32 scaleX, f32 scaleY, int c
 }
 
 /* 802C2D6C-802C2DE8       .text loadFont__10JUTResFontFi11_GXTexMapIDPQ27JUTFont6TWidth */
-void JUTResFont::loadFont(int code, GXTexMapID texMapID, JUTFont::TWidth* pDstWidth) {
+void JUTResFont::loadFont(int code, GXTexMapID texMapID, JUTFont::TWidth* pDstWidth FONT_DRAW_CTX) {
     if (pDstWidth) {
         getWidthEntry(code, pDstWidth);
     }
     u32 fontCode = getFontCode(code);
-    loadImage(fontCode, texMapID);
+    loadImage(fontCode, texMapID FONT_DRAW_CTX_ARG);
 }
 
 /* 802C2DE8-802C2E90       .text getWidthEntry__10JUTResFontCFiPQ27JUTFont6TWidth */
@@ -410,7 +472,7 @@ int JUTResFont::getFontCode(int chr) const {
 }
 
 /* 802C30E4-802C3248       .text loadImage__10JUTResFontFi11_GXTexMapID */
-void JUTResFont::loadImage(int code, GXTexMapID id) {
+void JUTResFont::loadImage(int code, GXTexMapID id FONT_DRAW_CTX) {
     int i = 0;
     for (; i < mGlyphBlockNum; i++) {
         if (mpGlyphBlocks[i]->startCode <= code && code <= mpGlyphBlocks[i]->endCode) {
@@ -429,6 +491,22 @@ void JUTResFont::loadImage(int code, GXTexMapID id) {
     s32 cellRow = (cellIdxInPage / mpGlyphBlocks[i]->numRows);
     mWidth = cellCol * mpGlyphBlocks[i]->cellWidth;
     mHeight = cellRow * mpGlyphBlocks[i]->cellHeight;
+
+#if TARGET_PC
+    if (mJoinedTextureHeight > 0) {
+        mHeight += mpGlyphBlocks[i]->textureHeight * pageIdx;
+
+        if (!context || !context->isTextureLoaded) {
+            GXLoadTexObj(&mJoinedTextureObject, id);
+            if (context) {
+                context->isTextureLoaded = true;
+            }
+        }
+        mTexPageIdx = pageIdx;
+        field_0x66 = i;
+        return;
+    }
+#endif
 
     if (pageIdx != mTexPageIdx || i != field_0x66) {
         GXInitTexObj(

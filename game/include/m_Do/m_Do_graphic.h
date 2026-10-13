@@ -42,6 +42,7 @@ public:
 #endif
     static void fadeOut(f32);
     static void calcFade();
+    static void advanceFade();
     static void onMonotone();
     static void offMonotone();
     static void calcMonotone();
